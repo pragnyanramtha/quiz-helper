@@ -57,26 +57,26 @@ export class ProcessingHelper {
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
     this.screenshotHelper = deps.getScreenshotHelper()
-    
+
     // Initialize AI client based on config
     this.initializeAIClient();
-    
+
     // Listen for config changes to re-initialize the AI client
     configHelper.on('config-updated', () => {
       this.initializeAIClient();
     });
   }
-  
+
   /**
    * Initialize or reinitialize the AI client with current config
    */
   private initializeAIClient(): void {
     try {
       const config = configHelper.loadConfig();
-      
+
       if (config.apiProvider === "openai") {
         if (config.apiKey) {
-          this.openaiClient = new OpenAI({ 
+          this.openaiClient = new OpenAI({
             apiKey: config.apiKey,
             timeout: 60000, // 60 second timeout
             maxRetries: 2   // Retry up to 2 times
@@ -90,7 +90,7 @@ export class ProcessingHelper {
           this.anthropicClient = null;
           console.warn("No API key available, OpenAI client not initialized");
         }
-      } else if (config.apiProvider === "gemini"){
+      } else if (config.apiProvider === "gemini") {
         // Gemini client initialization
         this.openaiClient = null;
         this.anthropicClient = null;
@@ -166,7 +166,7 @@ export class ProcessingHelper {
       if (config.language) {
         return config.language;
       }
-      
+
       // Fallback to window variable if config doesn't have language
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
@@ -187,7 +187,7 @@ export class ProcessingHelper {
           console.warn("Could not get language from window", err);
         }
       }
-      
+
       // Default fallback
       return "python";
     } catch (error) {
@@ -201,11 +201,11 @@ export class ProcessingHelper {
     if (!mainWindow) return
 
     const config = configHelper.loadConfig();
-    
+
     // First verify we have a valid AI client
     if (config.apiProvider === "openai" && !this.openaiClient) {
       this.initializeAIClient();
-      
+
       if (!this.openaiClient) {
         console.error("OpenAI client not initialized");
         mainWindow.webContents.send(
@@ -215,7 +215,7 @@ export class ProcessingHelper {
       }
     } else if (config.apiProvider === "gemini" && !this.geminiApiKey) {
       this.initializeAIClient();
-      
+
       if (!this.geminiApiKey) {
         console.error("Gemini API key not initialized");
         mainWindow.webContents.send(
@@ -226,7 +226,7 @@ export class ProcessingHelper {
     } else if (config.apiProvider === "anthropic" && !this.anthropicClient) {
       // Add check for Anthropic client
       this.initializeAIClient();
-      
+
       if (!this.anthropicClient) {
         console.error("Anthropic client not initialized");
         mainWindow.webContents.send(
@@ -243,7 +243,7 @@ export class ProcessingHelper {
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
       const screenshotQueue = this.screenshotHelper.getScreenshotQueue()
       console.log("Processing main queue screenshots:", screenshotQueue)
-      
+
       // Check if the queue is empty
       if (!screenshotQueue || screenshotQueue.length === 0) {
         console.log("No screenshots found in queue");
@@ -281,7 +281,7 @@ export class ProcessingHelper {
 
         // Filter out any nulls from failed screenshots
         const validScreenshots = screenshots.filter(Boolean);
-        
+
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data");
         }
@@ -341,12 +341,12 @@ export class ProcessingHelper {
       const extraScreenshotQueue =
         this.screenshotHelper.getExtraScreenshotQueue()
       console.log("Processing extra queue screenshots:", extraScreenshotQueue)
-      
+
       // Check if the extra queue is empty
       if (!extraScreenshotQueue || extraScreenshotQueue.length === 0) {
         console.log("No extra screenshots found in queue");
         mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
-        
+
         return;
       }
 
@@ -357,7 +357,7 @@ export class ProcessingHelper {
         mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
         return;
       }
-      
+
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START)
 
       // Initialize AbortController
@@ -370,7 +370,7 @@ export class ProcessingHelper {
           ...this.screenshotHelper.getScreenshotQueue(),
           ...existingExtraScreenshots
         ];
-        
+
         const screenshots = await Promise.all(
           allPaths.map(async (path) => {
             try {
@@ -378,7 +378,7 @@ export class ProcessingHelper {
                 console.warn(`Screenshot file does not exist: ${path}`);
                 return null;
               }
-              
+
               return {
                 path,
                 preview: await this.screenshotHelper.getImagePreview(path),
@@ -390,14 +390,14 @@ export class ProcessingHelper {
             }
           })
         )
-        
+
         // Filter out any nulls from failed screenshots
         const validScreenshots = screenshots.filter(Boolean);
-        
+
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data for debugging");
         }
-        
+
         console.log(
           "Combined screenshots for processing:",
           validScreenshots.map((s) => s.path)
@@ -446,25 +446,25 @@ export class ProcessingHelper {
       const config = configHelper.loadConfig();
       const language = await this.getLanguage();
       const mainWindow = this.deps.getMainWindow();
-      
+
       // Step 1: Extract problem info using AI Vision API (OpenAI or Gemini)
       const imageDataList = screenshots.map(screenshot => screenshot.data);
-      
+
       // Update the user on progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Analyzing problem from screenshots...",
+          message: "Analyzing question from screenshots...",
           progress: 20
         });
       }
 
       let problemInfo;
-      
+
       if (config.apiProvider === "openai") {
         // Verify OpenAI client
         if (!this.openaiClient) {
           this.initializeAIClient(); // Try to reinitialize
-          
+
           if (!this.openaiClient) {
             return {
               success: false,
@@ -476,15 +476,15 @@ export class ProcessingHelper {
         // Use OpenAI for processing
         const messages = [
           {
-            role: "system" as const, 
-            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
+            role: "system" as const,
+            content: "You are a Python and web development question analyzer. Analyze the screenshot and extract the question information. Identify the question type and return information in JSON format with these fields: question_text, question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type). Just return the structured JSON without any other text."
           },
           {
             role: "user" as const,
             content: [
               {
-                type: "text" as const, 
-                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
+                type: "text" as const,
+                text: `Analyze this Python/web development question from the screenshots. Identify if it's: 1) Problem & Solution (needs code implementation), 2) Multiple Choice (select from options), or 3) Missing Code (fill in blanks). Return in JSON format. Language: ${language}.`
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -512,10 +512,10 @@ export class ProcessingHelper {
           console.error("Error parsing OpenAI response:", error);
           return {
             success: false,
-            error: "Failed to parse problem information. Please try again or use clearer screenshots."
+            error: "Failed to parse question information. Please try again or use clearer screenshots."
           };
         }
-      } else if (config.apiProvider === "gemini")  {
+      } else if (config.apiProvider === "gemini") {
         // Use Gemini API
         if (!this.geminiApiKey) {
           return {
@@ -531,7 +531,7 @@ export class ProcessingHelper {
               role: "user",
               parts: [
                 {
-                  text: `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`
+                  text: `You are a Python and web development question analyzer. Analyze the screenshots and extract the question information. Identify the question type and return information in JSON format with these fields: question_text, question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type). Just return the structured JSON without any other text. Language: ${language}.`
                 },
                 ...imageDataList.map(data => ({
                   inlineData: {
@@ -545,7 +545,7 @@ export class ProcessingHelper {
 
           // Make API request to Gemini
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -557,13 +557,13 @@ export class ProcessingHelper {
           );
 
           const responseData = response.data as GeminiResponse;
-          
+
           if (!responseData.candidates || responseData.candidates.length === 0) {
             throw new Error("Empty response from Gemini API");
           }
-          
+
           const responseText = responseData.candidates[0].content.parts[0].text;
-          
+
           // Handle when Gemini might wrap the JSON in markdown code blocks
           const jsonText = responseText.replace(/```json|```/g, '').trim();
           problemInfo = JSON.parse(jsonText);
@@ -589,7 +589,7 @@ export class ProcessingHelper {
               content: [
                 {
                   type: "text" as const,
-                  text: `Extract the coding problem details from these screenshots. Return in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`
+                  text: `Analyze this Python/web development question from the screenshots. Identify if it's: 1) Problem & Solution (needs code implementation), 2) Multiple Choice (select from options), or 3) Missing Code (fill in blanks). Return in JSON format with fields: question_text, question_type, existing_code, choices, missing_parts. Language: ${language}.`
                 },
                 ...imageDataList.map(data => ({
                   type: "image" as const,
@@ -635,11 +635,11 @@ export class ProcessingHelper {
           };
         }
       }
-      
+
       // Update the user on progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Problem analyzed successfully. Preparing to generate solution...",
+          message: "Question analyzed successfully. Preparing to generate answer...",
           progress: 40
         });
       }
@@ -659,13 +659,13 @@ export class ProcessingHelper {
         if (solutionsResult.success) {
           // Clear any existing extra screenshots before transitioning to solutions view
           this.screenshotHelper.clearExtraScreenshotQueue();
-          
+
           // Final progress update
           mainWindow.webContents.send("processing-status", {
-            message: "Solution generated successfully",
+            message: "Answer generated successfully",
             progress: 100
           });
-          
+
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
             solutionsResult.data
@@ -687,7 +687,7 @@ export class ProcessingHelper {
           error: "Processing was canceled by the user."
         };
       }
-      
+
       // Handle OpenAI API errors specifically
       if (error?.response?.status === 401) {
         return {
@@ -707,9 +707,9 @@ export class ProcessingHelper {
       }
 
       console.error("API Error Details:", error);
-      return { 
-        success: false, 
-        error: error.message || "Failed to process screenshots. Please try again." 
+      return {
+        success: false,
+        error: error.message || "Failed to process screenshots. Please try again."
       };
     }
   }
@@ -728,42 +728,75 @@ export class ProcessingHelper {
       // Update progress status
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Creating optimal solution with detailed explanations...",
+          message: "Generating answer and code solution...",
           progress: 60
         });
       }
 
-      // Create prompt for solution generation
-      const promptText = `
-Generate a detailed solution for the following coding problem:
+      // Create prompt based on question type
+      let promptText = "";
 
-PROBLEM STATEMENT:
-${problemInfo.problem_statement}
+      if (problemInfo.question_type === "multiple_choice") {
+        promptText = `
+Answer this multiple choice question:
 
-CONSTRAINTS:
-${problemInfo.constraints || "No specific constraints provided."}
+QUESTION:
+${problemInfo.question_text}
 
-EXAMPLE INPUT:
-${problemInfo.example_input || "No example input provided."}
+CHOICES:
+${problemInfo.choices || "No choices provided"}
 
-EXAMPLE OUTPUT:
-${problemInfo.example_output || "No example output provided."}
+EXISTING CODE (if any):
+${problemInfo.existing_code || "No existing code"}
 
-LANGUAGE: ${language}
+Provide your response in this format:
+1. Answer: [Option number and letter, e.g., "Option 2: B"]
+2. Reasoning: [Brief explanation why this is correct]
+3. Code: [Show the correct answer in a code snippet]
 
-I need the response in the following format:
-1. Code: A clean, optimized implementation in ${language}
-2. Your Thoughts: A list of key insights and reasoning behind your approach
-3. Time complexity: O(X) with a detailed explanation (at least 2 sentences)
-4. Space complexity: O(X) with a detailed explanation (at least 2 sentences)
-
-For complexity explanations, please be thorough. For example: "Time complexity: O(n) because we iterate through the array only once. This is optimal as we need to examine each element at least once to find the solution." or "Space complexity: O(n) because in the worst case, we store all elements in the hashmap. The additional space scales linearly with the input size."
-
-Your solution should be efficient, well-commented, and handle edge cases.
+Keep the reasoning short and focused. Language: ${language}
 `;
+      } else if (problemInfo.question_type === "missing_code") {
+        promptText = `
+Fill in the missing code parts:
+
+QUESTION:
+${problemInfo.question_text}
+
+CODE WITH MISSING PARTS:
+${problemInfo.existing_code || "No code provided"}
+
+MISSING PARTS TO FILL:
+${problemInfo.missing_parts || "Identify what's missing"}
+
+Provide your response in this format:
+1. Missing Parts: [What should go in the blank spaces]
+2. Explanation: [Brief explanation of the solution]
+3. Code: [Complete code with all missing parts filled in]
+
+Language: ${language}
+`;
+      } else {
+        // Default to problem_solution type
+        promptText = `
+Solve this Python/web development problem:
+
+QUESTION:
+${problemInfo.question_text}
+
+EXISTING CODE (if any):
+${problemInfo.existing_code || "No existing code provided"}
+
+Provide your response in this format:
+1. Explanation: [Brief explanation of the approach]
+2. Code: [Clean, simple code solution without comments]
+
+If there's existing code, continue from it by adding required lines or fixing bugs. Keep the code simple and clean without comments. Language: ${language}
+`;
+      }
 
       let responseContent;
-      
+
       if (config.apiProvider === "openai") {
         // OpenAI processing
         if (!this.openaiClient) {
@@ -772,12 +805,12 @@ Your solution should be efficient, well-commented, and handle edge cases.
             error: "OpenAI API key not configured. Please check your settings."
           };
         }
-        
+
         // Send to OpenAI API
         const solutionResponse = await this.openaiClient.chat.completions.create({
           model: config.solutionModel || "gpt-4o",
           messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
+            { role: "system", content: "You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions." },
             { role: "user", content: promptText }
           ],
           max_tokens: 4000,
@@ -785,7 +818,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
         });
 
         responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider === "gemini")  {
+      } else if (config.apiProvider === "gemini") {
         // Gemini processing
         if (!this.geminiApiKey) {
           return {
@@ -793,7 +826,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             error: "Gemini API key not configured. Please check your settings."
           };
         }
-        
+
         try {
           // Create Gemini message structure
           const geminiMessages = [
@@ -801,7 +834,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
               role: "user",
               parts: [
                 {
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions:\n\n${promptText}`
                 }
               ]
             }
@@ -809,7 +842,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
 
           // Make API request to Gemini
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -821,11 +854,11 @@ Your solution should be efficient, well-commented, and handle edge cases.
           );
 
           const responseData = response.data as GeminiResponse;
-          
+
           if (!responseData.candidates || responseData.candidates.length === 0) {
             throw new Error("Empty response from Gemini API");
           }
-          
+
           responseContent = responseData.candidates[0].content.parts[0].text;
         } catch (error) {
           console.error("Error using Gemini API for solution:", error);
@@ -842,7 +875,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             error: "Anthropic API key not configured. Please check your settings."
           };
         }
-        
+
         try {
           const messages = [
             {
@@ -850,7 +883,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
               content: [
                 {
                   type: "text" as const,
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions:\n\n${promptText}`
                 }
               ]
             }
@@ -887,74 +920,56 @@ Your solution should be efficient, well-commented, and handle edge cases.
           };
         }
       }
-      
-      // Extract parts from the response
+
+      // Extract parts from the response based on question type
       const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
       const code = codeMatch ? codeMatch[1].trim() : responseContent;
-      
-      // Extract thoughts, looking for bullet points or numbered lists
-      const thoughtsRegex = /(?:Thoughts:|Key Insights:|Reasoning:|Approach:)([\s\S]*?)(?:Time complexity:|$)/i;
-      const thoughtsMatch = responseContent.match(thoughtsRegex);
-      let thoughts: string[] = [];
-      
-      if (thoughtsMatch && thoughtsMatch[1]) {
-        // Extract bullet points or numbered items
-        const bulletPoints = thoughtsMatch[1].match(/(?:^|\n)\s*(?:[-*•]|\d+\.)\s*(.*)/g);
-        if (bulletPoints) {
-          thoughts = bulletPoints.map(point => 
-            point.replace(/^\s*(?:[-*•]|\d+\.)\s*/, '').trim()
-          ).filter(Boolean);
-        } else {
-          // If no bullet points found, split by newlines and filter empty lines
-          thoughts = thoughtsMatch[1].split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean);
-        }
-      }
-      
-      // Extract complexity information
-      const timeComplexityPattern = /Time complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:Space complexity|$))/i;
-      const spaceComplexityPattern = /Space complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:[A-Z]|$))/i;
-      
-      let timeComplexity = "O(n) - Linear time complexity because we only iterate through the array once. Each element is processed exactly one time, and the hashmap lookups are O(1) operations.";
-      let spaceComplexity = "O(n) - Linear space complexity because we store elements in the hashmap. In the worst case, we might need to store all elements before finding the solution pair.";
-      
-      const timeMatch = responseContent.match(timeComplexityPattern);
-      if (timeMatch && timeMatch[1]) {
-        timeComplexity = timeMatch[1].trim();
-        if (!timeComplexity.match(/O\([^)]+\)/i)) {
-          timeComplexity = `O(n) - ${timeComplexity}`;
-        } else if (!timeComplexity.includes('-') && !timeComplexity.includes('because')) {
-          const notationMatch = timeComplexity.match(/O\([^)]+\)/i);
-          if (notationMatch) {
-            const notation = notationMatch[0];
-            const rest = timeComplexity.replace(notation, '').trim();
-            timeComplexity = `${notation} - ${rest}`;
-          }
-        }
-      }
-      
-      const spaceMatch = responseContent.match(spaceComplexityPattern);
-      if (spaceMatch && spaceMatch[1]) {
-        spaceComplexity = spaceMatch[1].trim();
-        if (!spaceComplexity.match(/O\([^)]+\)/i)) {
-          spaceComplexity = `O(n) - ${spaceComplexity}`;
-        } else if (!spaceComplexity.includes('-') && !spaceComplexity.includes('because')) {
-          const notationMatch = spaceComplexity.match(/O\([^)]+\)/i);
-          if (notationMatch) {
-            const notation = notationMatch[0];
-            const rest = spaceComplexity.replace(notation, '').trim();
-            spaceComplexity = `${notation} - ${rest}`;
-          }
-        }
-      }
 
-      const formattedResponse = {
-        code: code,
-        thoughts: thoughts.length > 0 ? thoughts : ["Solution approach based on efficiency and readability"],
-        time_complexity: timeComplexity,
-        space_complexity: spaceComplexity
-      };
+      let formattedResponse;
+
+      if (problemInfo.question_type === "multiple_choice") {
+        // Parse multiple choice response
+        const answerMatch = responseContent.match(/(?:Answer:?\s*)(.*?)(?:\n|$)/i);
+        const reasoningMatch = responseContent.match(/(?:Reasoning:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+
+        const answer = answerMatch ? answerMatch[1].trim() : "Answer not found";
+        const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided";
+
+        formattedResponse = {
+          code: code,
+          thoughts: [answer, reasoning],
+          answer: answer,
+          reasoning: reasoning,
+          question_type: "multiple_choice"
+        };
+      } else if (problemInfo.question_type === "missing_code") {
+        // Parse missing code response
+        const missingPartsMatch = responseContent.match(/(?:Missing Parts:?\s*)([\s\S]*?)(?:\n\s*(?:Explanation:|$))/i);
+        const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+
+        const missingParts = missingPartsMatch ? missingPartsMatch[1].trim() : "Missing parts not identified";
+        const explanation = explanationMatch ? explanationMatch[1].trim() : "No explanation provided";
+
+        formattedResponse = {
+          code: code,
+          thoughts: [missingParts, explanation],
+          missing_parts: missingParts,
+          explanation: explanation,
+          question_type: "missing_code"
+        };
+      } else {
+        // Parse problem solution response
+        const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+
+        const explanation = explanationMatch ? explanationMatch[1].trim() : "Solution provided";
+
+        formattedResponse = {
+          code: code,
+          thoughts: [explanation],
+          explanation: explanation,
+          question_type: "problem_solution"
+        };
+      }
 
       return { success: true, data: formattedResponse };
     } catch (error: any) {
@@ -964,7 +979,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
           error: "Processing was canceled by the user."
         };
       }
-      
+
       if (error?.response?.status === 401) {
         return {
           success: false,
@@ -976,7 +991,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
           error: "OpenAI API rate limit exceeded or insufficient credits. Please try again later."
         };
       }
-      
+
       console.error("Solution generation error:", error);
       return { success: false, error: error.message || "Failed to generate solution" };
     }
@@ -999,16 +1014,16 @@ Your solution should be efficient, well-commented, and handle edge cases.
       // Update progress status
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Processing debug screenshots...",
+          message: "Analyzing screenshots for debugging...",
           progress: 30
         });
       }
 
       // Prepare the images for the API call
       const imageDataList = screenshots.map(screenshot => screenshot.data);
-      
+
       let debugContent;
-      
+
       if (config.apiProvider === "openai") {
         if (!this.openaiClient) {
           return {
@@ -1016,40 +1031,25 @@ Your solution should be efficient, well-commented, and handle edge cases.
             error: "OpenAI API key not configured. Please check your settings."
           };
         }
-        
+
         const messages = [
           {
-            role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+            role: "system" as const,
+            content: `You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
 
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
+Your response MUST follow this exact structure:
+1. Reasoning: [Explain what you see and understand about the problem]
+2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
+3. Code: [Provide the complete, corrected code solution]
 
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+Keep each section clear and concise. Use proper markdown code blocks for the code section.`
           },
           {
             role: "user" as const,
             content: [
               {
-                type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
+                type: "text" as const,
+                text: `I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}. Please analyze the screenshots and provide: 1. Reasoning text, 2. What's missing in text, 3. Full code along with the answer.`
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1061,7 +1061,7 @@ If you include code examples, use proper markdown code blocks with language spec
 
         if (mainWindow) {
           mainWindow.webContents.send("processing-status", {
-            message: "Analyzing code and generating debug feedback...",
+            message: "Generating reasoning and identifying missing parts...",
             progress: 60
           });
         }
@@ -1072,39 +1072,28 @@ If you include code examples, use proper markdown code blocks with language spec
           max_tokens: 4000,
           temperature: 0.2
         });
-        
+
         debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "gemini")  {
+      } else if (config.apiProvider === "gemini") {
         if (!this.geminiApiKey) {
           return {
             success: false,
             error: "Gemini API key not configured. Please check your settings."
           };
         }
-        
+
         try {
           const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
 
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
+I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
+Your response MUST follow this exact structure:
+1. Reasoning: [Explain what you see and understand about the problem]
+2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
+3. Code: [Provide the complete, corrected code solution]
 
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).
+Keep each section clear and concise. Use proper markdown code blocks for the code section.
 `;
 
           const geminiMessages = [
@@ -1124,13 +1113,13 @@ If you include code examples, use proper markdown code blocks with language spec
 
           if (mainWindow) {
             mainWindow.webContents.send("processing-status", {
-              message: "Analyzing code and generating debug feedback with Gemini...",
+              message: "Generating reasoning and identifying missing parts with Gemini...",
               progress: 60
             });
           }
 
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -1142,11 +1131,11 @@ If you include code examples, use proper markdown code blocks with language spec
           );
 
           const responseData = response.data as GeminiResponse;
-          
+
           if (!responseData.candidates || responseData.candidates.length === 0) {
             throw new Error("Empty response from Gemini API");
           }
-          
+
           debugContent = responseData.candidates[0].content.parts[0].text;
         } catch (error) {
           console.error("Error using Gemini API for debugging:", error);
@@ -1162,30 +1151,19 @@ If you include code examples, use proper markdown code blocks with language spec
             error: "Anthropic API key not configured. Please check your settings."
           };
         }
-        
+
         try {
           const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
 
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
+I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
+Your response MUST follow this exact structure:
+1. Reasoning: [Explain what you see and understand about the problem]
+2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
+3. Code: [Provide the complete, corrected code solution]
 
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification.
+Keep each section clear and concise. Use proper markdown code blocks for the code section.
 `;
 
           const messages = [
@@ -1200,7 +1178,7 @@ If you include code examples, use proper markdown code blocks with language spec
                   type: "image" as const,
                   source: {
                     type: "base64" as const,
-                    media_type: "image/png" as const, 
+                    media_type: "image/png" as const,
                     data: data
                   }
                 }))
@@ -1210,7 +1188,7 @@ If you include code examples, use proper markdown code blocks with language spec
 
           if (mainWindow) {
             mainWindow.webContents.send("processing-status", {
-              message: "Analyzing code and generating debug feedback with Claude...",
+              message: "Generating reasoning and identifying missing parts with Claude...",
               progress: 60
             });
           }
@@ -1221,11 +1199,11 @@ If you include code examples, use proper markdown code blocks with language spec
             messages: messages,
             temperature: 0.2
           });
-          
+
           debugContent = (response.content[0] as { type: 'text', text: string }).text;
         } catch (error: any) {
           console.error("Error using Anthropic API for debugging:", error);
-          
+
           // Add specific handling for Claude's limitations
           if (error.status === 429) {
             return {
@@ -1238,15 +1216,15 @@ If you include code examples, use proper markdown code blocks with language spec
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
             };
           }
-          
+
           return {
             success: false,
             error: "Failed to process debug request with Anthropic API. Please check your API key or try again later."
           };
         }
       }
-      
-      
+
+
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
           message: "Debug analysis complete",
@@ -1254,33 +1232,29 @@ If you include code examples, use proper markdown code blocks with language spec
         });
       }
 
+      // Parse the new format: 1. Reasoning, 2. What's Missing, 3. Code
+      const reasoningMatch = debugContent.match(/(?:1\.\s*Reasoning:?\s*|Reasoning:?\s*)([\s\S]*?)(?=\n\s*(?:2\.|What's Missing:|$))/i);
+      const missingMatch = debugContent.match(/(?:2\.\s*What's Missing:?\s*|What's Missing:?\s*)([\s\S]*?)(?=\n\s*(?:3\.|Code:|$))/i);
+      const codeMatch = debugContent.match(/(?:3\.\s*Code:?\s*|Code:?\s*)([\s\S]*?)(?:\n\s*$|$)/i);
+
+      // Extract code from markdown blocks if present
       let extractedCode = "// Debug mode - see analysis below";
-      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
       if (codeMatch && codeMatch[1]) {
-        extractedCode = codeMatch[1].trim();
+        const codeContent = codeMatch[1].trim();
+        const markdownCodeMatch = codeContent.match(/```(?:[a-zA-Z]+)?\s*([\s\S]*?)```/);
+        extractedCode = markdownCodeMatch ? markdownCodeMatch[1].trim() : codeContent;
       }
 
-      let formattedDebugContent = debugContent;
-      
-      if (!debugContent.includes('# ') && !debugContent.includes('## ')) {
-        formattedDebugContent = debugContent
-          .replace(/issues identified|problems found|bugs found/i, '## Issues Identified')
-          .replace(/code improvements|improvements|suggested changes/i, '## Code Improvements')
-          .replace(/optimizations|performance improvements/i, '## Optimizations')
-          .replace(/explanation|detailed analysis/i, '## Explanation');
-      }
+      const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Analysis provided";
+      const whatsMissing = missingMatch ? missingMatch[1].trim() : "Issues identified";
 
-      const bulletPoints = formattedDebugContent.match(/(?:^|\n)[ ]*(?:[-*•]|\d+\.)[ ]+([^\n]+)/g);
-      const thoughts = bulletPoints 
-        ? bulletPoints.map(point => point.replace(/^[ ]*(?:[-*•]|\d+\.)[ ]+/, '').trim()).slice(0, 5)
-        : ["Debug analysis based on your screenshots"];
-      
       const response = {
         code: extractedCode,
-        debug_analysis: formattedDebugContent,
-        thoughts: thoughts,
-        time_complexity: "N/A - Debug mode",
-        space_complexity: "N/A - Debug mode"
+        thoughts: [reasoning, whatsMissing],
+        reasoning: reasoning,
+        whats_missing: whatsMissing,
+        debug_analysis: debugContent,
+        question_type: "debug"
       };
 
       return { success: true, data: response };
