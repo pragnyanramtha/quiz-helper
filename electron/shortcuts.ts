@@ -189,14 +189,14 @@ export class ShortcutsHelper {
           const nextIndex = (currentIndex + 1) % geminiModels.length
           newModel = geminiModels[nextIndex]
         } else if (provider === "openai") {
-          // Cycle through OpenAI models: gpt-4o -> gpt-4o-mini -> gpt-4o
-          const openaiModels = ["gpt-4o", "gpt-4o-mini"]
+          // Cycle through OpenAI models: gpt-5 -> gpt-5-mini -> gpt-5
+          const openaiModels = ["gpt-5", "gpt-5-mini"]
           const currentIndex = openaiModels.indexOf(config.solutionModel)
           const nextIndex = (currentIndex + 1) % openaiModels.length
           newModel = openaiModels[nextIndex]
         } else if (provider === "anthropic") {
           // Cycle through Claude models
-          const claudeModels = ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"]
+          const claudeModels = ["claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-haiku-20241022"]
           const currentIndex = claudeModels.indexOf(config.solutionModel)
           const nextIndex = (currentIndex + 1) % claudeModels.length
           newModel = claudeModels[nextIndex]

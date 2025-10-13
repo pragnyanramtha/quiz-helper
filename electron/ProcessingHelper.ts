@@ -496,7 +496,7 @@ export class ProcessingHelper {
 
         // Send to OpenAI Vision API
         const extractionResponse = await this.openaiClient.chat.completions.create({
-          model: config.extractionModel || "gpt-4o",
+          model: config.extractionModel || "gpt-5",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -604,7 +604,7 @@ export class ProcessingHelper {
           ];
 
           const response = await this.anthropicClient.messages.create({
-            model: config.extractionModel || "claude-3-7-sonnet-20250219",
+            model: config.extractionModel || "claude-sonnet-4-20250514",
             max_tokens: 4000,
             messages: messages,
             temperature: 0.2
@@ -814,7 +814,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
 
         // Send to OpenAI API
         const solutionResponse = await this.openaiClient.chat.completions.create({
-          model: config.solutionModel || "gpt-4o",
+          model: config.solutionModel || "gpt-5",
           messages: [
             { role: "system", content: "You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions." },
             { role: "user", content: promptText }
@@ -897,7 +897,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
 
           // Send to Anthropic API
           const response = await this.anthropicClient.messages.create({
-            model: config.solutionModel || "claude-3-7-sonnet-20250219",
+            model: config.solutionModel || "claude-sonnet-4-20250514",
             max_tokens: 4000,
             messages: messages,
             temperature: 0.2
@@ -1108,7 +1108,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
         }
 
         const debugResponse = await this.openaiClient.chat.completions.create({
-          model: config.debuggingModel || "gpt-4o",
+          model: config.debuggingModel || "gpt-5",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -1235,7 +1235,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
           }
 
           const response = await this.anthropicClient.messages.create({
-            model: config.debuggingModel || "claude-3-7-sonnet-20250219",
+            model: config.debuggingModel || "claude-sonnet-4-20250514",
             max_tokens: 4000,
             messages: messages,
             temperature: 0.2

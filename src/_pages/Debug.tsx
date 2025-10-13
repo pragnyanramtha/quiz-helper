@@ -6,7 +6,7 @@ import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 import ScreenshotQueue from "../components/Queue/ScreenshotQueue"
 import SolutionCommands from "../components/Solutions/SolutionCommands"
 import { Screenshot } from "../types/screenshots"
-import { ComplexitySection, ContentSection } from "./Solutions"
+import { ContentSection } from "./Solutions"
 import { useToast } from "../contexts/toast"
 
 const CodeSection = ({
@@ -96,12 +96,6 @@ const Debug: React.FC<DebugProps> = ({
 
   const [newCode, setNewCode] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
-  const [timeComplexityData, setTimeComplexityData] = useState<string | null>(
-    null
-  )
-  const [spaceComplexityData, setSpaceComplexityData] = useState<string | null>(
-    null
-  )
   const [debugAnalysis, setDebugAnalysis] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
@@ -113,8 +107,6 @@ const Debug: React.FC<DebugProps> = ({
       code: string
       debug_analysis: string
       thoughts: string[]
-      time_complexity: string
-      space_complexity: string
     } | null
 
     // If we have cached data, set all state variables to the cached data
@@ -140,8 +132,6 @@ const Debug: React.FC<DebugProps> = ({
         setNewCode(newSolution.code || "// No analysis available");
         setThoughtsData(newSolution.thoughts || ["Debug analysis based on your screenshots"]);
       }
-      setTimeComplexityData(newSolution.time_complexity || "N/A - Debug mode")
-      setSpaceComplexityData(newSolution.space_complexity || "N/A - Debug mode")
       setIsProcessing(false)
     }
 
@@ -188,8 +178,6 @@ const Debug: React.FC<DebugProps> = ({
           setThoughtsData(data.thoughts || ["Debug analysis based on your screenshots"]);
           setDebugAnalysis(null);
         }
-        setTimeComplexityData(data.time_complexity || "N/A - Debug mode");
-        setSpaceComplexityData(data.space_complexity || "N/A - Debug mode");
         
         setIsProcessing(false);
       }),
@@ -483,12 +471,6 @@ const Debug: React.FC<DebugProps> = ({
               )}
             </div>
 
-            {/* Complexity Section */}
-            <ComplexitySection
-              timeComplexity={timeComplexityData}
-              spaceComplexity={spaceComplexityData}
-              isLoading={!timeComplexityData || !spaceComplexityData}
-            />
           </div>
         </div>
       </div>

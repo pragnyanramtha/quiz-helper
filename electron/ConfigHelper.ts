@@ -19,10 +19,10 @@ export class ConfigHelper extends EventEmitter {
   private configPath: string;
   private defaultConfig: Config = {
     apiKey: "",
-    apiProvider: "gemini", // Default to Gemini
-    extractionModel: "gemini-2.5-flash-lite", // Default to Flash Lite
-    solutionModel: "gemini-2.5-flash-lite",
-    debuggingModel: "gemini-2.5-flash-lite",
+    apiProvider: "openai", // Default to OpenAI
+    extractionModel: "gpt-5", // Default to GPT-5
+    solutionModel: "gpt-5",
+    debuggingModel: "gpt-5",
     language: "python",
     opacity: 1.0
   };
@@ -60,11 +60,11 @@ export class ConfigHelper extends EventEmitter {
    */
   private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic"): string {
     if (provider === "openai") {
-      // Only allow gpt-4o and gpt-4o-mini for OpenAI
-      const allowedModels = ['gpt-4o', 'gpt-4o-mini'];
+      // Only allow gpt-5 and gpt-5-mini for OpenAI
+      const allowedModels = ['gpt-5', 'gpt-5-mini'];
       if (!allowedModels.includes(model)) {
-        console.warn(`Invalid OpenAI model specified: ${model}. Using default model: gpt-4o`);
-        return 'gpt-4o';
+        console.warn(`Invalid OpenAI model specified: ${model}. Using default model: gpt-5`);
+        return 'gpt-5';
       }
       return model;
     } else if (provider === "gemini")  {
@@ -77,10 +77,10 @@ export class ConfigHelper extends EventEmitter {
       return model;
     }  else if (provider === "anthropic") {
       // Only allow Claude models
-      const allowedModels = ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'];
+      const allowedModels = ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022'];
       if (!allowedModels.includes(model)) {
-        console.warn(`Invalid Anthropic model specified: ${model}. Using default model: claude-3-7-sonnet-20250219`);
-        return 'claude-3-7-sonnet-20250219';
+        console.warn(`Invalid Anthropic model specified: ${model}. Using default model: claude-sonnet-4-20250514`);
+        return 'claude-sonnet-4-20250514';
       }
       return model;
     }
@@ -171,13 +171,13 @@ export class ConfigHelper extends EventEmitter {
       // If provider is changing, reset models to the default for that provider
       if (updates.apiProvider && updates.apiProvider !== currentConfig.apiProvider) {
         if (updates.apiProvider === "openai") {
-          updates.extractionModel = "gpt-4o";
-          updates.solutionModel = "gpt-4o";
-          updates.debuggingModel = "gpt-4o";
+          updates.extractionModel = "gpt-5";
+          updates.solutionModel = "gpt-5";
+          updates.debuggingModel = "gpt-5";
         } else if (updates.apiProvider === "anthropic") {
-          updates.extractionModel = "claude-3-7-sonnet-20250219";
-          updates.solutionModel = "claude-3-7-sonnet-20250219";
-          updates.debuggingModel = "claude-3-7-sonnet-20250219";
+          updates.extractionModel = "claude-sonnet-4-20250514";
+          updates.solutionModel = "claude-sonnet-4-20250514";
+          updates.debuggingModel = "claude-sonnet-4-20250514";
         } else {
           updates.extractionModel = "gemini-2.5-flash-lite";
           updates.solutionModel = "gemini-2.5-flash-lite";

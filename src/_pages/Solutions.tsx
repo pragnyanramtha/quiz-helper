@@ -103,67 +103,7 @@ const SolutionSection = ({
   )
 }
 
-export const ComplexitySection = ({
-  timeComplexity,
-  spaceComplexity,
-  isLoading
-}: {
-  timeComplexity: string | null
-  spaceComplexity: string | null
-  isLoading: boolean
-}) => {
-  // Helper to ensure we have proper complexity values
-  const formatComplexity = (complexity: string | null): string => {
-    // Default if no complexity returned by LLM
-    if (!complexity || complexity.trim() === "") {
-      return "Complexity not available";
-    }
-
-    const bigORegex = /O\([^)]+\)/i;
-    // Return the complexity as is if it already has Big O notation
-    if (bigORegex.test(complexity)) {
-      return complexity;
-    }
-    
-    // Concat Big O notation to the complexity
-    return `O(${complexity})`;
-  };
-  
-  const formattedTimeComplexity = formatComplexity(timeComplexity);
-  const formattedSpaceComplexity = formatComplexity(spaceComplexity);
-  
-  return (
-    <div className="space-y-2">
-      <h2 className="text-[13px] font-medium text-white tracking-wide">
-        Complexity
-      </h2>
-      {isLoading ? (
-        <p className="text-xs bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
-          Calculating complexity...
-        </p>
-      ) : (
-        <div className="space-y-3">
-          <div className="text-[13px] leading-[1.4] text-gray-100 bg-white/5 rounded-md p-3">
-            <div className="flex items-start gap-2">
-              <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-2 shrink-0" />
-              <div>
-                <strong>Time:</strong> {formattedTimeComplexity}
-              </div>
-            </div>
-          </div>
-          <div className="text-[13px] leading-[1.4] text-gray-100 bg-white/5 rounded-md p-3">
-            <div className="flex items-start gap-2">
-              <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-2 shrink-0" />
-              <div>
-                <strong>Space:</strong> {formattedSpaceComplexity}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ComplexitySection removed - app does not calculate complexity
 
 export interface SolutionsProps {
   setView: (view: "queue" | "solutions" | "debug") => void
@@ -185,12 +125,6 @@ const Solutions: React.FC<SolutionsProps> = ({
     useState<ProblemStatementData | null>(null)
   const [solutionData, setSolutionData] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
-  const [timeComplexityData, setTimeComplexityData] = useState<string | null>(
-    null
-  )
-  const [spaceComplexityData, setSpaceComplexityData] = useState<string | null>(
-    null
-  )
 
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const [tooltipHeight, setTooltipHeight] = useState(0)
@@ -297,8 +231,6 @@ const Solutions: React.FC<SolutionsProps> = ({
         // Every time processing starts, reset relevant states
         setSolutionData(null)
         setThoughtsData(null)
-        setTimeComplexityData(null)
-        setSpaceComplexityData(null)
       }),
       window.electronAPI.onProblemExtracted((data) => {
         queryClient.setQueryData(["problem_statement"], data)
@@ -306,20 +238,16 @@ const Solutions: React.FC<SolutionsProps> = ({
       //if there was an error processing the initial solution
       window.electronAPI.onSolutionError((error: string) => {
         showToast("Processing Failed", error, "error")
-        // Reset solutions in the cache (even though this shouldn't ever happen) and complexities to previous states
+        // Reset solutions in the cache to previous states
         const solution = queryClient.getQueryData(["solution"]) as {
           code: string
           thoughts: string[]
-          time_complexity: string
-          space_complexity: string
         } | null
         if (!solution) {
           setView("queue")
         }
         setSolutionData(solution?.code || null)
         setThoughtsData(solution?.thoughts || null)
-        setTimeComplexityData(solution?.time_complexity || null)
-        setSpaceComplexityData(solution?.space_complexity || null)
         console.error("Processing error:", error)
       }),
       //when the initial solution is generated, we'll set the solution data to that
@@ -331,16 +259,12 @@ const Solutions: React.FC<SolutionsProps> = ({
         console.log({ data })
         const solutionData = {
           code: data.code,
-          thoughts: data.thoughts,
-          time_complexity: data.time_complexity,
-          space_complexity: data.space_complexity
+          thoughts: data.thoughts
         }
 
         queryClient.setQueryData(["solution"], solutionData)
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
-        setTimeComplexityData(solutionData.time_complexity || null)
-        setSpaceComplexityData(solutionData.space_complexity || null)
 
         // Fetch latest screenshots when solution is successful
         const fetchScreenshots = async () => {
@@ -415,14 +339,10 @@ const Solutions: React.FC<SolutionsProps> = ({
         const solution = queryClient.getQueryData(["solution"]) as {
           code: string
           thoughts: string[]
-          time_complexity: string
-          space_complexity: string
         } | null
 
         setSolutionData(solution?.code ?? null)
         setThoughtsData(solution?.thoughts ?? null)
-        setTimeComplexityData(solution?.time_complexity ?? null)
-        setSpaceComplexityData(solution?.space_complexity ?? null)
       }
     })
     return () => unsubscribe()
@@ -584,12 +504,6 @@ const Solutions: React.FC<SolutionsProps> = ({
                       content={solutionData}
                       isLoading={!solutionData}
                       currentLanguage={currentLanguage}
-                    />
-
-                    <ComplexitySection
-                      timeComplexity={timeComplexityData}
-                      spaceComplexity={spaceComplexityData}
-                      isLoading={!timeComplexityData || !spaceComplexityData}
                     />
                   </>
                 )}
