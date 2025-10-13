@@ -236,7 +236,21 @@ const electronAPI = {
       ipcRenderer.removeListener("delete-last-screenshot", subscription)
     }
   },
-  deleteLastScreenshot: () => ipcRenderer.invoke("delete-last-screenshot")
+  deleteLastScreenshot: () => ipcRenderer.invoke("delete-last-screenshot"),
+  onCopyCodeToClipboard: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("copy-code-to-clipboard", subscription)
+    return () => {
+      ipcRenderer.removeListener("copy-code-to-clipboard", subscription)
+    }
+  },
+  onModelChanged: (callback: (data: { model: string; provider: string }) => void) => {
+    const subscription = (_: any, data: { model: string; provider: string }) => callback(data)
+    ipcRenderer.on("model-changed", subscription)
+    return () => {
+      ipcRenderer.removeListener("model-changed", subscription)
+    }
+  }
 }
 
 // Before exposing the API

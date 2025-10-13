@@ -33,7 +33,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onOpenSettings }) 
               </li>
               <li className="flex justify-between text-sm">
                 <span className="text-white/70">Delete Last Screenshot</span>
-                <span className="text-white/90">Ctrl+L / Cmd+L</span>
+                <span className="text-white/90">Ctrl+Backspace / Cmd+Backspace</span>
+              </li>
+              <li className="flex justify-between text-sm">
+                <span className="text-white/70">Copy Code to Clipboard</span>
+                <span className="text-white/90">Ctrl+Shift+C / Cmd+Shift+C</span>
               </li>
               <li className="flex justify-between text-sm">
                 <span className="text-white/70">Process Screenshots</span>

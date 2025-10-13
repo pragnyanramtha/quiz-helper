@@ -749,10 +749,12 @@ ${problemInfo.choices || "No choices provided"}
 EXISTING CODE (if any):
 ${problemInfo.existing_code || "No existing code"}
 
-Provide your response in this format:
-1. Answer: [Option number and letter, e.g., "Option 2: B"]
-2. Reasoning: [Brief explanation why this is correct]
-3. Code: [Show the correct answer in a code snippet]
+IMPORTANT: Return your response as a valid JSON object with this exact structure:
+{
+  "answer": "Option number and letter, e.g., Option 2: B",
+  "reasoning": "Brief explanation why this is correct",
+  "code": "Show the correct answer in a code snippet"
+}
 
 Keep the reasoning short and focused. Language: ${language}
 `;
@@ -769,10 +771,12 @@ ${problemInfo.existing_code || "No code provided"}
 MISSING PARTS TO FILL:
 ${problemInfo.missing_parts || "Identify what's missing"}
 
-Provide your response in this format:
-1. Missing Parts: [What should go in the blank spaces]
-2. Explanation: [Brief explanation of the solution]
-3. Code: [Complete code with all missing parts filled in]
+IMPORTANT: Return your response as a valid JSON object with this exact structure:
+{
+  "missing_parts": "What should go in the blank spaces",
+  "explanation": "Brief explanation of the solution",
+  "code": "Complete code with all missing parts filled in"
+}
 
 Language: ${language}
 `;
@@ -787,9 +791,11 @@ ${problemInfo.question_text}
 EXISTING CODE (if any):
 ${problemInfo.existing_code || "No existing code provided"}
 
-Provide your response in this format:
-1. Explanation: [Brief explanation of the approach]
-2. Code: [Clean, simple code solution without comments]
+IMPORTANT: Return your response as a valid JSON object with this exact structure:
+{
+  "explanation": "Brief explanation of the approach",
+  "code": "Clean, simple code solution without comments"
+}
 
 If there's existing code, continue from it by adding required lines or fixing bugs. Keep the code simple and clean without comments. Language: ${language}
 `;
@@ -921,54 +927,89 @@ If there's existing code, continue from it by adding required lines or fixing bu
         }
       }
 
-      // Extract parts from the response based on question type
-      const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
-      const code = codeMatch ? codeMatch[1].trim() : responseContent;
-
+      // Try to parse JSON response first
       let formattedResponse;
+      let parsedJSON = null;
+      
+      try {
+        // Try to extract JSON from markdown code blocks or direct JSON
+        const jsonMatch = responseContent.match(/```(?:json)?\s*([\s\S]*?)```/) || responseContent.match(/\{[\s\S]*\}/);
+        const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : responseContent.trim();
+        parsedJSON = JSON.parse(jsonText);
+      } catch (error) {
+        console.log("Failed to parse JSON response, falling back to text parsing");
+      }
 
-      if (problemInfo.question_type === "multiple_choice") {
-        // Parse multiple choice response
-        const answerMatch = responseContent.match(/(?:Answer:?\s*)(.*?)(?:\n|$)/i);
-        const reasoningMatch = responseContent.match(/(?:Reasoning:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
-
-        const answer = answerMatch ? answerMatch[1].trim() : "Answer not found";
-        const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided";
-
-        formattedResponse = {
-          code: code,
-          thoughts: [answer, reasoning],
-          answer: answer,
-          reasoning: reasoning,
-          question_type: "multiple_choice"
-        };
-      } else if (problemInfo.question_type === "missing_code") {
-        // Parse missing code response
-        const missingPartsMatch = responseContent.match(/(?:Missing Parts:?\s*)([\s\S]*?)(?:\n\s*(?:Explanation:|$))/i);
-        const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
-
-        const missingParts = missingPartsMatch ? missingPartsMatch[1].trim() : "Missing parts not identified";
-        const explanation = explanationMatch ? explanationMatch[1].trim() : "No explanation provided";
-
-        formattedResponse = {
-          code: code,
-          thoughts: [missingParts, explanation],
-          missing_parts: missingParts,
-          explanation: explanation,
-          question_type: "missing_code"
-        };
+      if (parsedJSON) {
+        // Use JSON response
+        if (problemInfo.question_type === "multiple_choice") {
+          formattedResponse = {
+            code: parsedJSON.code || "",
+            thoughts: [parsedJSON.answer || "Answer not found", parsedJSON.reasoning || "No reasoning provided"],
+            answer: parsedJSON.answer || "Answer not found",
+            reasoning: parsedJSON.reasoning || "No reasoning provided",
+            question_type: "multiple_choice"
+          };
+        } else if (problemInfo.question_type === "missing_code") {
+          formattedResponse = {
+            code: parsedJSON.code || "",
+            thoughts: [parsedJSON.missing_parts || "Missing parts not identified", parsedJSON.explanation || "No explanation provided"],
+            missing_parts: parsedJSON.missing_parts || "Missing parts not identified",
+            explanation: parsedJSON.explanation || "No explanation provided",
+            question_type: "missing_code"
+          };
+        } else {
+          formattedResponse = {
+            code: parsedJSON.code || "",
+            thoughts: [parsedJSON.explanation || "Solution provided"],
+            explanation: parsedJSON.explanation || "Solution provided",
+            question_type: "problem_solution"
+          };
+        }
       } else {
-        // Parse problem solution response
-        const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+        // Fallback to text parsing
+        const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+        const code = codeMatch ? codeMatch[1].trim() : responseContent;
 
-        const explanation = explanationMatch ? explanationMatch[1].trim() : "Solution provided";
+        if (problemInfo.question_type === "multiple_choice") {
+          const answerMatch = responseContent.match(/(?:Answer:?\s*)(.*?)(?:\n|$)/i);
+          const reasoningMatch = responseContent.match(/(?:Reasoning:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
 
-        formattedResponse = {
-          code: code,
-          thoughts: [explanation],
-          explanation: explanation,
-          question_type: "problem_solution"
-        };
+          const answer = answerMatch ? answerMatch[1].trim() : "Answer not found";
+          const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided";
+
+          formattedResponse = {
+            code: code,
+            thoughts: [answer, reasoning],
+            answer: answer,
+            reasoning: reasoning,
+            question_type: "multiple_choice"
+          };
+        } else if (problemInfo.question_type === "missing_code") {
+          const missingPartsMatch = responseContent.match(/(?:Missing Parts:?\s*)([\s\S]*?)(?:\n\s*(?:Explanation:|$))/i);
+          const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+
+          const missingParts = missingPartsMatch ? missingPartsMatch[1].trim() : "Missing parts not identified";
+          const explanation = explanationMatch ? explanationMatch[1].trim() : "No explanation provided";
+
+          formattedResponse = {
+            code: code,
+            thoughts: [missingParts, explanation],
+            missing_parts: missingParts,
+            explanation: explanation,
+            question_type: "missing_code"
+          };
+        } else {
+          const explanationMatch = responseContent.match(/(?:Explanation:?\s*)([\s\S]*?)(?:\n\s*(?:Code:|$))/i);
+          const explanation = explanationMatch ? explanationMatch[1].trim() : "Solution provided";
+
+          formattedResponse = {
+            code: code,
+            thoughts: [explanation],
+            explanation: explanation,
+            question_type: "problem_solution"
+          };
+        }
       }
 
       return { success: true, data: formattedResponse };
@@ -1038,18 +1079,18 @@ If there's existing code, continue from it by adding required lines or fixing bu
             content: `You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
 
 Your response MUST follow this exact structure:
-1. Reasoning: [Explain what you see and understand about the problem]
+1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
 2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
 3. Code: [Provide the complete, corrected code solution]
 
-Keep each section clear and concise. Use proper markdown code blocks for the code section.`
+IMPORTANT: The Reasoning section is mandatory and must never be empty. Always provide your analysis of what you observe in the screenshots, even if it's just describing the code structure or identifying the programming language.`
           },
           {
             role: "user" as const,
             content: [
               {
                 type: "text" as const,
-                text: `I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}. Please analyze the screenshots and provide: 1. Reasoning text, 2. What's missing in text, 3. Full code along with the answer.`
+                text: `I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}. Please analyze the screenshots and provide: 1. Reasoning text (REQUIRED - explain what you see), 2. What's missing in text, 3. Full code along with the answer. The reasoning section must never be empty.`
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1089,11 +1130,11 @@ You are a Python and web development expert helping debug and improve solutions.
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
 Your response MUST follow this exact structure:
-1. Reasoning: [Explain what you see and understand about the problem]
+1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
 2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
 3. Code: [Provide the complete, corrected code solution]
 
-Keep each section clear and concise. Use proper markdown code blocks for the code section.
+IMPORTANT: The Reasoning section is mandatory and must never be empty. Always provide your analysis of what you observe in the screenshots, even if it's just describing the code structure or identifying the programming language.
 `;
 
           const geminiMessages = [
@@ -1159,11 +1200,11 @@ You are a Python and web development expert helping debug and improve solutions.
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
 Your response MUST follow this exact structure:
-1. Reasoning: [Explain what you see and understand about the problem]
+1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
 2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
 3. Code: [Provide the complete, corrected code solution]
 
-Keep each section clear and concise. Use proper markdown code blocks for the code section.
+IMPORTANT: The Reasoning section is mandatory and must never be empty. Always provide your analysis of what you observe in the screenshots, even if it's just describing the code structure or identifying the programming language.
 `;
 
           const messages = [
@@ -1233,9 +1274,10 @@ Keep each section clear and concise. Use proper markdown code blocks for the cod
       }
 
       // Parse the new format: 1. Reasoning, 2. What's Missing, 3. Code
-      const reasoningMatch = debugContent.match(/(?:1\.\s*Reasoning:?\s*|Reasoning:?\s*)([\s\S]*?)(?=\n\s*(?:2\.|What's Missing:|$))/i);
-      const missingMatch = debugContent.match(/(?:2\.\s*What's Missing:?\s*|What's Missing:?\s*)([\s\S]*?)(?=\n\s*(?:3\.|Code:|$))/i);
-      const codeMatch = debugContent.match(/(?:3\.\s*Code:?\s*|Code:?\s*)([\s\S]*?)(?:\n\s*$|$)/i);
+      // Try multiple patterns to catch different formatting styles
+      const reasoningMatch = debugContent.match(/(?:1\.\s*Reasoning:?\s*|Reasoning:?\s*|Analysis:?\s*|Understanding:?\s*)([\s\S]*?)(?=\n\s*(?:2\.|What's Missing:|Missing:|Issues:|$))/i);
+      const missingMatch = debugContent.match(/(?:2\.\s*What's Missing:?\s*|What's Missing:?\s*|Missing:?\s*|Issues:?\s*|Problems:?\s*)([\s\S]*?)(?=\n\s*(?:3\.|Code:|Solution:|$))/i);
+      const codeMatch = debugContent.match(/(?:3\.\s*Code:?\s*|Code:?\s*|Solution:?\s*)([\s\S]*?)(?:\n\s*$|$)/i);
 
       // Extract code from markdown blocks if present
       let extractedCode = "// Debug mode - see analysis below";
@@ -1245,8 +1287,19 @@ Keep each section clear and concise. Use proper markdown code blocks for the cod
         extractedCode = markdownCodeMatch ? markdownCodeMatch[1].trim() : codeContent;
       }
 
-      const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "Analysis provided";
-      const whatsMissing = missingMatch ? missingMatch[1].trim() : "Issues identified";
+      // Provide better fallbacks for reasoning and missing parts
+      let reasoning = reasoningMatch ? reasoningMatch[1].trim() : "";
+      let whatsMissing = missingMatch ? missingMatch[1].trim() : "";
+
+      // If reasoning is empty or too short, provide a meaningful fallback
+      if (!reasoning || reasoning.length < 10) {
+        reasoning = `Based on the screenshots provided, I can see ${problemInfo.question_type || 'programming'} content that needs analysis. The code appears to be in ${language} and requires debugging assistance.`;
+      }
+
+      // If what's missing is empty, provide a fallback
+      if (!whatsMissing || whatsMissing.length < 5) {
+        whatsMissing = "Code improvements or corrections are needed based on the provided screenshots.";
+      }
 
       const response = {
         code: extractedCode,

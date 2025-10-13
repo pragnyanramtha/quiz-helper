@@ -61,6 +61,8 @@ export interface ElectronAPI {
   openLink: (url: string) => void
   onApiKeyInvalid: (callback: () => void) => () => void
   removeListener: (eventName: string, callback: (...args: any[]) => void) => void
+  onModelChanged: (callback: (data: { model: string; provider: string }) => void) => () => void
+  onCopyCodeToClipboard: (callback: () => void) => () => void
 }
 
 declare global {

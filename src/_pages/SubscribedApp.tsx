@@ -20,6 +20,35 @@ const SubscribedApp: React.FC<SubscribedAppProps> = ({
   const [view, setView] = useState<"queue" | "solutions" | "debug">("queue")
   const containerRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+  const [currentModel, setCurrentModel] = useState<string>("")
+  const [currentProvider, setCurrentProvider] = useState<string>("")
+
+  // Load current model on mount
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        const config = await window.electronAPI.getConfig()
+        setCurrentModel(config.solutionModel || config.model || "")
+        setCurrentProvider(config.apiProvider || "")
+      } catch (error) {
+        console.error("Failed to load model:", error)
+      }
+    }
+    loadModel()
+  }, [])
+
+  // Listen for model changes
+  useEffect(() => {
+    const cleanup = window.electronAPI.onModelChanged((data: { model: string; provider: string }) => {
+      setCurrentModel(data.model)
+      setCurrentProvider(data.provider)
+      showToast("Model Changed", `Switched to ${data.model}`, "success")
+    })
+
+    return () => {
+      cleanup()
+    }
+  }, [showToast])
 
   // Let's ensure we reset queries etc. if some electron signals happen
   useEffect(() => {
@@ -142,6 +171,8 @@ const SubscribedApp: React.FC<SubscribedAppProps> = ({
           credits={credits}
           currentLanguage={currentLanguage}
           setLanguage={setLanguage}
+          currentModel={currentModel}
+          currentProvider={currentProvider}
         />
       ) : view === "solutions" ? (
         <Solutions

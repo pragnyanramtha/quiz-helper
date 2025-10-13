@@ -52,6 +52,24 @@ export class ShortcutsHelper {
       }
     })
 
+    // Alias for Ctrl+H - Ctrl+M to take screenshot
+    globalShortcut.register("CommandOrControl+M", async () => {
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        console.log("Taking screenshot (alias for Ctrl+H)...")
+        try {
+          const screenshotPath = await this.deps.takeScreenshot()
+          const preview = await this.deps.getImagePreview(screenshotPath)
+          mainWindow.webContents.send("screenshot-taken", {
+            path: screenshotPath,
+            preview
+          })
+        } catch (error) {
+          console.error("Error capturing screenshot:", error)
+        }
+      }
+    })
+
     globalShortcut.register("CommandOrControl+Enter", async () => {
       await this.deps.processingHelper?.processScreenshots()
     })
@@ -106,6 +124,12 @@ export class ShortcutsHelper {
       this.deps.toggleMainWindow()
     })
 
+    // Alias for Ctrl+B - Ctrl+I to toggle visibility
+    globalShortcut.register("CommandOrControl+I", () => {
+      console.log("Command/Ctrl + I pressed. Toggling window visibility (alias for Ctrl+B).")
+      this.deps.toggleMainWindow()
+    })
+
     globalShortcut.register("CommandOrControl+Q", () => {
       console.log("Command/Ctrl + Q pressed. Quitting application.")
       app.quit()
@@ -148,10 +172,68 @@ export class ShortcutsHelper {
         mainWindow.webContents.setZoomLevel(currentZoom + 0.5)
       }
     })
+
+    // Ctrl+\ to cycle through models in the same family
+    globalShortcut.register("CommandOrControl+\\", () => {
+      console.log("Command/Ctrl + \\ pressed. Cycling through models in the same family.")
+      try {
+        const config = configHelper.loadConfig()
+        const provider = config.apiProvider
+        
+        let newModel = ""
+        
+        if (provider === "gemini") {
+          // Cycle through Gemini models: pro -> flash -> lite -> pro
+          const geminiModels = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+          const currentIndex = geminiModels.indexOf(config.solutionModel)
+          const nextIndex = (currentIndex + 1) % geminiModels.length
+          newModel = geminiModels[nextIndex]
+        } else if (provider === "openai") {
+          // Cycle through OpenAI models: gpt-4o -> gpt-4o-mini -> gpt-4o
+          const openaiModels = ["gpt-4o", "gpt-4o-mini"]
+          const currentIndex = openaiModels.indexOf(config.solutionModel)
+          const nextIndex = (currentIndex + 1) % openaiModels.length
+          newModel = openaiModels[nextIndex]
+        } else if (provider === "anthropic") {
+          // Cycle through Claude models
+          const claudeModels = ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"]
+          const currentIndex = claudeModels.indexOf(config.solutionModel)
+          const nextIndex = (currentIndex + 1) % claudeModels.length
+          newModel = claudeModels[nextIndex]
+        }
+        
+        if (newModel) {
+          configHelper.updateConfig({
+            extractionModel: newModel,
+            solutionModel: newModel,
+            debuggingModel: newModel
+          })
+          console.log(`Switched to model: ${newModel}`)
+          
+          // Notify the renderer process about the model change
+          const mainWindow = this.deps.getMainWindow()
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("model-changed", { model: newModel, provider })
+          }
+        }
+      } catch (error) {
+        console.error("Error cycling models:", error)
+      }
+    })
+    
+    // Copy code to clipboard shortcut
+    globalShortcut.register("CommandOrControl+Shift+C", () => {
+      console.log("Command/Ctrl + Shift + C pressed. Copying code to clipboard.")
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        // Send an event to the renderer to copy the code
+        mainWindow.webContents.send("copy-code-to-clipboard")
+      }
+    })
     
     // Delete last screenshot shortcut
-    globalShortcut.register("CommandOrControl+L", () => {
-      console.log("Command/Ctrl + L pressed. Deleting last screenshot.")
+    globalShortcut.register("CommandOrControl+Backspace", () => {
+      console.log("Command/Ctrl + Backspace pressed. Deleting last screenshot.")
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
         // Send an event to the renderer to delete the last screenshot

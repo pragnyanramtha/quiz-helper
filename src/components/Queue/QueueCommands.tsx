@@ -11,6 +11,8 @@ interface QueueCommandsProps {
   credits: number
   currentLanguage: string
   setLanguage: (language: string) => void
+  currentModel: string
+  currentProvider: string
 }
 
 const QueueCommands: React.FC<QueueCommandsProps> = ({
@@ -18,7 +20,9 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   screenshotCount = 0,
   credits,
   currentLanguage,
-  setLanguage
+  setLanguage,
+  currentModel,
+  currentProvider
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -113,10 +117,38 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     setIsTooltipVisible(false)
   }
 
+  // Format model name for display
+  const getModelDisplayName = (model: string) => {
+    if (!model) return ""
+    if (model.includes("gemini")) {
+      // Just show Pro, Flash, or Flash Lite
+      if (model.includes("flash-lite")) return "Flash Lite"
+      if (model.includes("flash")) return "Flash"
+      if (model.includes("pro")) return "Pro"
+      return model
+    } else if (model.includes("gpt")) {
+      return model.toUpperCase()
+    } else if (model.includes("claude")) {
+      const parts = model.split("-")
+      return `Claude ${parts[2] || ""}`
+    }
+    return model
+  }
+
   return (
     <div>
       <div className="pt-2 w-fit">
         <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4 flex items-center justify-center gap-4">
+          {/* Model Indicator */}
+          {currentModel && (
+            <>
+              <div className="flex items-center gap-2 px-2 py-1">
+                <span className="text-[10px] text-white/50">Model:</span>
+                <span className="text-[11px] font-semibold text-white/90">{getModelDisplayName(currentModel)}</span>
+              </div>
+              <div className="h-4 w-px bg-white/20" />
+            </>
+          )}
           {/* Screenshot */}
           <div
             className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-white/10 transition-colors"

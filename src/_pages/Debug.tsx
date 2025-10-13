@@ -235,6 +235,40 @@ const Debug: React.FC<DebugProps> = ({
     }
   }, [queryClient, setIsProcessing])
 
+  // Listen for copy code event from global shortcut
+  useEffect(() => {
+    const cleanup = window.electronAPI.onCopyCodeToClipboard(() => {
+      if (newCode) {
+        try {
+          // Create a temporary textarea to copy text
+          const textarea = document.createElement('textarea')
+          textarea.value = newCode
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.select()
+          const success = document.execCommand('copy')
+          document.body.removeChild(textarea)
+          
+          if (success) {
+            showToast("Copied!", "Code copied to clipboard", "success")
+          } else {
+            showToast("Error", "Failed to copy code to clipboard", "error")
+          }
+        } catch (err) {
+          console.error("Failed to copy code:", err)
+          showToast("Error", "Failed to copy code to clipboard", "error")
+        }
+      } else {
+        showToast("No Code", "No code available to copy", "neutral")
+      }
+    })
+
+    return () => {
+      cleanup()
+    }
+  }, [newCode, showToast])
+
   const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
     setTooltipVisible(visible)
     setTooltipHeight(height)
