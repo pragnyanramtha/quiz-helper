@@ -477,7 +477,7 @@ export class ProcessingHelper {
         const messages = [
           {
             role: "system" as const,
-            content: "You are a Python and web development question analyzer. Analyze the screenshot and extract the question information. Identify the question type and return information in JSON format with these fields: question_text, question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type). Just return the structured JSON without any other text."
+            content: "You are an expert analyzer for Python and web development questions (HTML, CSS, JavaScript). Analyze the screenshot(s) carefully. For design screenshots: describe the visual layout, colors, fonts, spacing, and styling you see. Identify the question type and return information in JSON format with these fields: question_text (include design description if it's a design screenshot), question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type), design_details (if it's a design recreation task). Just return the structured JSON without any other text."
           },
           {
             role: "user" as const,
@@ -782,19 +782,47 @@ Language: ${language}
 `;
       } else {
         // Default to problem_solution type
+        const isWebDev = language.toLowerCase().includes('html') || language.toLowerCase().includes('css') || language.toLowerCase().includes('javascript') || language.toLowerCase().includes('web');
+        
         promptText = `
-Solve this Python/web development problem:
+Solve this ${isWebDev ? 'web development' : 'programming'} problem:
 
+${isWebDev ? 'NOTE: If the screenshots show a website design/layout, your task is to RECREATE that exact design in HTML/CSS. Analyze the images carefully for colors, fonts, spacing, layout, buttons, and all visual elements.\n' : ''}
 QUESTION:
 ${problemInfo.question_text}
 
 EXISTING CODE (if any):
 ${problemInfo.existing_code || "No existing code provided"}
 
+${isWebDev ? `
+CRITICAL HTML/CSS REQUIREMENTS - FOLLOW EXACTLY:
+- ANALYZE THE SCREENSHOT(S) CAREFULLY: If the question includes design images, recreate the exact layout, colors, spacing, fonts, and styling you see
+- CHECK THE <body> TAG: If there are animation instructions or additional requirements in the existing code's <body> tag, implement them
+- Include ALL CSS inside <style> tags in the <head> section
+- ABSOLUTELY NO EXTERNAL LINKS: No Bootstrap CDN, no Google Fonts, no external CSS/JS files
+- NO <link> tags to external resources
+- NO <script> tags to external libraries
+- Write PURE HTML/CSS only - completely self-contained
+- PREFER BOOTSTRAP APPROACH: Write Bootstrap-style CSS classes yourself (container, row, col, btn, card, etc.)
+- Use STANDARD CSS CLASS NAMING: Follow industry conventions (BEM, Bootstrap naming, or common patterns)
+  * Examples: .container, .row, .col, .btn, .btn-primary, .card, .card-body, .navbar, .hero-section
+  * Use kebab-case for multi-word classes: .hero-section, .nav-item, .footer-links
+  * Avoid random or unclear names like .box1, .div2, .thing
+- If you need custom fonts, use web-safe fonts (Arial, Helvetica, Georgia, etc.)
+- Write complete, self-contained HTML that works when copied directly into a .html file
+- Match the design from the screenshot as closely as possible (colors, fonts, spacing, layout)
+- Make sure all HTML tags are properly closed
+- Include proper DOCTYPE, html, head, and body tags
+- Use semantic HTML elements (header, nav, main, section, footer, etc.)
+- Add responsive design with media queries if the design suggests it
+- Test that the code is syntactically correct and renders properly
+- The HTML must work OFFLINE with NO internet connection
+` : ''}
+
 IMPORTANT: Return your response as a valid JSON object with this exact structure:
 {
   "explanation": "Brief explanation of the approach",
-  "code": "Clean, simple code solution without comments"
+  "code": "${isWebDev ? 'Complete, working HTML with embedded CSS in <style> tags' : 'Clean, simple code solution without comments'}"
 }
 
 If there's existing code, continue from it by adding required lines or fixing bugs. Keep the code simple and clean without comments. Language: ${language}
@@ -816,7 +844,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
         const solutionResponse = await this.openaiClient.chat.completions.create({
           model: config.solutionModel || "gpt-5",
           messages: [
-            { role: "system", content: "You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions." },
+            { role: "system", content: "You are an expert in Python and web development (HTML, CSS, JavaScript). For HTML/CSS questions: Write PURE HTML/CSS with NO external dependencies. NEVER use CDN links. ALL CSS must be embedded in <style> tags. PREFER BOOTSTRAP-STYLE CSS: Write Bootstrap classes yourself (container, row, col, btn, card, navbar, etc.). Use STANDARD CSS NAMING CONVENTIONS: Follow industry patterns like BEM or Bootstrap naming (kebab-case, semantic names). Check <body> tag for animation instructions. Use web-safe fonts only. The HTML must work OFFLINE. For design screenshots: CAREFULLY ANALYZE and recreate the EXACT design - match colors, fonts, spacing, layout precisely. Write complete, self-contained HTML. For other languages: provide clean, functional code." },
             { role: "user", content: promptText }
           ],
           max_tokens: 4000,
@@ -840,7 +868,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
               role: "user",
               parts: [
                 {
-                  text: `You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions:\n\n${promptText}`
+                  text: `You are an expert in Python and web development (HTML, CSS, JavaScript). For HTML/CSS questions: Write PURE HTML/CSS with NO external dependencies. NEVER use CDN links. ALL CSS must be embedded in <style> tags. PREFER BOOTSTRAP-STYLE CSS: Write Bootstrap classes yourself (container, row, col, btn, card, navbar, etc.). Use STANDARD CSS NAMING CONVENTIONS: Follow industry patterns like BEM or Bootstrap naming (kebab-case, semantic names). Check <body> tag for animation instructions. Use web-safe fonts only. The HTML must work OFFLINE. For design screenshots: CAREFULLY ANALYZE and recreate the EXACT design - match colors, fonts, spacing, layout precisely. Write complete, self-contained HTML. For other languages: provide clean, functional code:\n\n${promptText}`
                 }
               ]
             }
@@ -889,7 +917,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
               content: [
                 {
                   type: "text" as const,
-                  text: `You are a Python and web development expert. Help solve programming questions, multiple choice questions, and fill-in-the-blank code problems. Provide clear, concise solutions:\n\n${promptText}`
+                  text: `You are an expert in Python and web development (HTML, CSS, JavaScript). For HTML/CSS questions: Write PURE HTML/CSS with NO external dependencies. NEVER use CDN links. ALL CSS must be embedded in <style> tags. PREFER BOOTSTRAP-STYLE CSS: Write Bootstrap classes yourself (container, row, col, btn, card, navbar, etc.). Use STANDARD CSS NAMING CONVENTIONS: Follow industry patterns like BEM or Bootstrap naming (kebab-case, semantic names). Check <body> tag for animation instructions. Use web-safe fonts only. The HTML must work OFFLINE. For design screenshots: CAREFULLY ANALYZE and recreate the EXACT design - match colors, fonts, spacing, layout precisely. Write complete, self-contained HTML. For other languages: provide clean, functional code:\n\n${promptText}`
                 }
               ]
             }
@@ -1076,7 +1104,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
         const messages = [
           {
             role: "system" as const,
-            content: `You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
+            content: `You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
 
 Your response MUST follow this exact structure:
 1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
@@ -1125,7 +1153,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
 
         try {
           const debugPrompt = `
-You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
+You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
 
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
@@ -1195,7 +1223,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
 
         try {
           const debugPrompt = `
-You are a Python and web development expert helping debug and improve solutions. Analyze these screenshots and provide debugging help in the exact format requested.
+You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
 
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
 
