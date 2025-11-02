@@ -477,7 +477,7 @@ export class ProcessingHelper {
         const messages = [
           {
             role: "system" as const,
-            content: "You are an expert analyzer for Python and web development questions (HTML, CSS, JavaScript). Analyze the screenshot(s) carefully. For design screenshots: describe the visual layout, colors, fonts, spacing, and styling you see. Identify the question type and return information in JSON format with these fields: question_text (include design description if it's a design screenshot), question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type), design_details (if it's a design recreation task). Just return the structured JSON without any other text."
+            content: "You are an expert analyzer for Python and web development questions (HTML, CSS, JavaScript). Analyze the screenshot(s) carefully. For design screenshots: describe the visual layout, colors, fonts, spacing, and styling you see. Identify the question type and return information in VALID JSON format with these fields: question_text (include design description if it's a design screenshot), question_type (either 'problem_solution', 'multiple_choice', or 'missing_code'), existing_code (if any), choices (if multiple choice), missing_parts (if missing code type), design_details (if it's a design recreation task). CRITICAL: Return ONLY valid JSON. Escape all special characters properly. Do not include any text before or after the JSON. Do not include code blocks or markdown."
           },
           {
             role: "user" as const,
@@ -498,7 +498,7 @@ export class ProcessingHelper {
         const extractionResponse = await this.openaiClient.chat.completions.create({
           model: config.extractionModel || "gpt-5",
           messages: messages,
-          max_tokens: 4000,
+          max_tokens: 32000,
           temperature: 0.2
         });
 
@@ -550,7 +550,7 @@ export class ProcessingHelper {
               contents: geminiMessages,
               generationConfig: {
                 temperature: 0.2,
-                maxOutputTokens: 4000
+                maxOutputTokens: 32000
               }
             },
             { signal }
@@ -565,14 +565,47 @@ export class ProcessingHelper {
           const responseText = responseData.candidates[0].content.parts[0].text;
 
           // Handle when Gemini might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
+          let jsonText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+          // Try to extract JSON if it's embedded in other text
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+
+          // Log the JSON for debugging
+          console.log("Attempting to parse JSON:", jsonText.substring(0, 500) + "...");
+
           problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error using Gemini API:", error);
-          return {
-            success: false,
-            error: "Failed to process with Gemini API. Please check your API key or try again later."
-          };
+        } catch (error: any) {
+          console.error("Error using Gemini API for extraction:", error);
+          console.error("Gemini API error details:", error.response?.data || error.message);
+
+          // If JSON parsing failed, try to use a simpler extraction
+          if (error.message && error.message.includes("JSON")) {
+            console.log("JSON parsing failed, using fallback extraction");
+            // Create a simple problem info for the user to continue
+            problemInfo = {
+              question_text: "Problem extracted from screenshots",
+              question_type: "problem_solution",
+              existing_code: "",
+              choices: [],
+              missing_parts: ""
+            };
+            // Continue processing instead of returning error
+          } else {
+            let errorMessage = "Failed to process with Gemini API.";
+            if (error.response?.data?.error?.message) {
+              errorMessage += ` Error: ${error.response.data.error.message}`;
+            } else if (error.message) {
+              errorMessage += ` Error: ${error.message}`;
+            }
+
+            return {
+              success: false,
+              error: errorMessage
+            };
+          }
         }
       } else if (config.apiProvider === "anthropic") {
         if (!this.anthropicClient) {
@@ -605,7 +638,7 @@ export class ProcessingHelper {
 
           const response = await this.anthropicClient.messages.create({
             model: config.extractionModel || "claude-sonnet-4-20250514",
-            max_tokens: 4000,
+            max_tokens: 32000,
             messages: messages,
             temperature: 0.2
           });
@@ -783,7 +816,7 @@ Language: ${language}
       } else {
         // Default to problem_solution type
         const isWebDev = language.toLowerCase().includes('html') || language.toLowerCase().includes('css') || language.toLowerCase().includes('javascript') || language.toLowerCase().includes('web');
-        
+
         promptText = `
 Solve this ${isWebDev ? 'web development' : 'programming'} problem:
 
@@ -847,7 +880,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
             { role: "system", content: "You are an expert in Python and web development (HTML, CSS, JavaScript). For HTML/CSS questions: Write PURE HTML/CSS with NO external dependencies. NEVER use CDN links. ALL CSS must be embedded in <style> tags. PREFER BOOTSTRAP-STYLE CSS: Write Bootstrap classes yourself (container, row, col, btn, card, navbar, etc.). Use STANDARD CSS NAMING CONVENTIONS: Follow industry patterns like BEM or Bootstrap naming (kebab-case, semantic names). Check <body> tag for animation instructions. Use web-safe fonts only. The HTML must work OFFLINE. For design screenshots: CAREFULLY ANALYZE and recreate the EXACT design - match colors, fonts, spacing, layout precisely. Write complete, self-contained HTML. For other languages: provide clean, functional code." },
             { role: "user", content: promptText }
           ],
-          max_tokens: 4000,
+          max_tokens: 32000,
           temperature: 0.2
         });
 
@@ -881,7 +914,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
               contents: geminiMessages,
               generationConfig: {
                 temperature: 0.2,
-                maxOutputTokens: 4000
+                maxOutputTokens: 32000
               }
             },
             { signal }
@@ -894,11 +927,20 @@ If there's existing code, continue from it by adding required lines or fixing bu
           }
 
           responseContent = responseData.candidates[0].content.parts[0].text;
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error using Gemini API for solution:", error);
+          console.error("Gemini API error details:", error.response?.data || error.message);
+
+          let errorMessage = "Failed to generate solution with Gemini API.";
+          if (error.response?.data?.error?.message) {
+            errorMessage += ` Error: ${error.response.data.error.message}`;
+          } else if (error.message) {
+            errorMessage += ` Error: ${error.message}`;
+          }
+
           return {
             success: false,
-            error: "Failed to generate solution with Gemini API. Please check your API key or try again later."
+            error: errorMessage
           };
         }
       } else if (config.apiProvider === "anthropic") {
@@ -926,7 +968,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
           // Send to Anthropic API
           const response = await this.anthropicClient.messages.create({
             model: config.solutionModel || "claude-sonnet-4-20250514",
-            max_tokens: 4000,
+            max_tokens: 32000,
             messages: messages,
             temperature: 0.2
           });
@@ -958,7 +1000,7 @@ If there's existing code, continue from it by adding required lines or fixing bu
       // Try to parse JSON response first
       let formattedResponse;
       let parsedJSON = null;
-      
+
       try {
         // Try to extract JSON from markdown code blocks or direct JSON
         const jsonMatch = responseContent.match(/```(?:json)?\s*([\s\S]*?)```/) || responseContent.match(/\{[\s\S]*\}/);
@@ -1101,15 +1143,18 @@ If there's existing code, continue from it by adding required lines or fixing bu
           };
         }
 
+        // Get the previous solution if available
+        const previousSolution = problemInfo.code || problemInfo.solution_code || "";
+
         const messages = [
           {
             role: "system" as const,
-            content: `You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
+            content: `You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze the screenshots showing errors and the PREVIOUS CODE to identify and fix issues.
 
 Your response MUST follow this exact structure:
-1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
-2. What's Missing: [Identify what's missing, wrong, or needs to be fixed]
-3. Code: [Provide the complete, corrected code solution]
+1. Reasoning: [REQUIRED - Explain what errors you see in the screenshots and what's wrong with the previous code]
+2. What's Missing: [Identify what's missing, wrong, or needs to be fixed based on the error screenshots]
+3. Code: [Provide the complete, corrected code solution with all errors fixed]
 
 IMPORTANT: The Reasoning section is mandatory and must never be empty. Always provide your analysis of what you observe in the screenshots, even if it's just describing the code structure or identifying the programming language.`
           },
@@ -1118,7 +1163,17 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
             content: [
               {
                 type: "text" as const,
-                text: `I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}. Please analyze the screenshots and provide: 1. Reasoning text (REQUIRED - explain what you see), 2. What's missing in text, 3. Full code along with the answer. The reasoning section must never be empty.`
+                text: `I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
+
+${previousSolution ? `PREVIOUS CODE THAT WAS GENERATED:
+\`\`\`
+${previousSolution}
+\`\`\`
+
+The screenshots show ERRORS or ISSUES with this code. Please analyze the error screenshots and fix the code.
+` : 'The screenshots show errors or issues. Please analyze them and provide the corrected code.'}
+
+Please provide: 1. Reasoning (REQUIRED - explain what errors you see in the screenshots and what's wrong with the code), 2. What's missing/wrong, 3. Complete corrected code with all errors fixed. The reasoning section must never be empty.`
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1138,7 +1193,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
         const debugResponse = await this.openaiClient.chat.completions.create({
           model: config.debuggingModel || "gpt-5",
           messages: messages,
-          max_tokens: 4000,
+          max_tokens: 32000,
           temperature: 0.2
         });
 
@@ -1151,11 +1206,22 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
           };
         }
 
+        // Get the previous solution if available
+        const previousSolution = problemInfo.code || problemInfo.solution_code || "";
+
         try {
           const debugPrompt = `
-You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
+You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze the screenshots showing errors and the PREVIOUS CODE to identify and fix issues.
 
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
+
+${previousSolution ? `PREVIOUS CODE THAT WAS GENERATED:
+\`\`\`
+${previousSolution}
+\`\`\`
+
+The screenshots show ERRORS or ISSUES with this code. Please analyze the error screenshots and fix the code.
+` : 'The screenshots show errors or issues. Please analyze them and provide the corrected code.'}
 
 Your response MUST follow this exact structure:
 1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
@@ -1193,7 +1259,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
               contents: geminiMessages,
               generationConfig: {
                 temperature: 0.2,
-                maxOutputTokens: 4000
+                maxOutputTokens: 32000
               }
             },
             { signal }
@@ -1206,11 +1272,20 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
           }
 
           debugContent = responseData.candidates[0].content.parts[0].text;
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error using Gemini API for debugging:", error);
+          console.error("Gemini API error details:", error.response?.data || error.message);
+
+          let errorMessage = "Failed to process debug request with Gemini API.";
+          if (error.response?.data?.error?.message) {
+            errorMessage += ` Error: ${error.response.data.error.message}`;
+          } else if (error.message) {
+            errorMessage += ` Error: ${error.message}`;
+          }
+
           return {
             success: false,
-            error: "Failed to process debug request with Gemini API. Please check your API key or try again later."
+            error: errorMessage
           };
         }
       } else if (config.apiProvider === "anthropic") {
@@ -1221,11 +1296,22 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
           };
         }
 
+        // Get the previous solution if available
+        const previousSolution = problemInfo.code || problemInfo.solution_code || "";
+
         try {
           const debugPrompt = `
-You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze these screenshots and provide debugging help in the exact format requested.
+You are an expert in Python and web development (HTML, CSS, JavaScript) helping debug and improve solutions. For HTML: ALWAYS include CSS in <style> tags within the HTML, never as separate files. Ensure all HTML tags are properly closed and the code is syntactically correct. Analyze the screenshots showing errors and the PREVIOUS CODE to identify and fix issues.
 
 I'm working on this ${problemInfo.question_type || 'programming'} question: "${problemInfo.question_text || problemInfo.problem_statement}" in ${language}.
+
+${previousSolution ? `PREVIOUS CODE THAT WAS GENERATED:
+\`\`\`
+${previousSolution}
+\`\`\`
+
+The screenshots show ERRORS or ISSUES with this code. Please analyze the error screenshots and fix the code.
+` : 'The screenshots show errors or issues. Please analyze them and provide the corrected code.'}
 
 Your response MUST follow this exact structure:
 1. Reasoning: [REQUIRED - Always explain what you see and understand about the problem, even if it's basic]
@@ -1264,7 +1350,7 @@ IMPORTANT: The Reasoning section is mandatory and must never be empty. Always pr
 
           const response = await this.anthropicClient.messages.create({
             model: config.debuggingModel || "claude-sonnet-4-20250514",
-            max_tokens: 4000,
+            max_tokens: 32000,
             messages: messages,
             temperature: 0.2
           });

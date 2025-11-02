@@ -172,19 +172,24 @@ if (process.defaultApp && process.argv.length >= 2) {
   ])
 }
 
-// Force Single Instance Lock
+// Force Single Instance Lock - Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
+  console.log("Another instance is already running. Quitting this instance.")
   app.quit()
 } else {
+  console.log("Single instance lock acquired successfully")
+  
   app.on("second-instance", (event, commandLine) => {
+    console.log("Second instance attempted to start. Focusing existing window.")
     // Someone tried to run a second instance, we should focus our window.
     if (state.mainWindow) {
-      if (state.mainWindow.isMinimized()) state.mainWindow.restore()
+      if (state.mainWindow.isMinimized()) {
+        state.mainWindow.restore()
+      }
+      state.mainWindow.show()
       state.mainWindow.focus()
-
-      // Protocol handler removed - no longer using auth callbacks
     }
   })
 }
@@ -594,17 +599,13 @@ app.on("second-instance", (event, commandLine) => {
   }
 })
 
-// Prevent multiple instances of the app
-if (!app.requestSingleInstanceLock()) {
-  app.quit()
-} else {
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit()
-      state.mainWindow = null
-    }
-  })
-}
+// Window lifecycle management
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit()
+    state.mainWindow = null
+  }
+})
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
