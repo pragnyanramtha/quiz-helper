@@ -244,11 +244,32 @@ const electronAPI = {
       ipcRenderer.removeListener("copy-code-to-clipboard", subscription)
     }
   },
+  onCopyHtmlToClipboard: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("copy-html-to-clipboard", subscription)
+    return () => {
+      ipcRenderer.removeListener("copy-html-to-clipboard", subscription)
+    }
+  },
+  onCopyCssToClipboard: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("copy-css-to-clipboard", subscription)
+    return () => {
+      ipcRenderer.removeListener("copy-css-to-clipboard", subscription)
+    }
+  },
   onModelChanged: (callback: (data: { model: string; provider: string }) => void) => {
     const subscription = (_: any, data: { model: string; provider: string }) => callback(data)
     ipcRenderer.on("model-changed", subscription)
     return () => {
       ipcRenderer.removeListener("model-changed", subscription)
+    }
+  },
+  onShowErrorNotification: (callback: (data: { title: string; message: string }) => void) => {
+    const subscription = (_: any, data: { title: string; message: string }) => callback(data)
+    ipcRenderer.on("show-error-notification", subscription)
+    return () => {
+      ipcRenderer.removeListener("show-error-notification", subscription)
     }
   }
 }

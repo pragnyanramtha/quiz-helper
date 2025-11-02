@@ -37,9 +37,9 @@ export class ProcessingHelper {
   private openaiClient: OpenAI | null = null
   private geminiApiKey: string | null = null
   private anthropicClient: Anthropic | null = null
-
+  
   // Conversation history for debugging
-  private conversationHistory: Array<{ role: string, content: any }> = []
+  private conversationHistory: Array<{role: string, content: any}> = []
   private lastResponse: string = ""
 
   // AbortControllers
@@ -49,7 +49,7 @@ export class ProcessingHelper {
     this.deps = deps
     this.screenshotHelper = deps.getScreenshotHelper()
     this.initializeAIClient()
-
+    
     configHelper.on('config-updated', () => {
       this.initializeAIClient()
     })
@@ -95,38 +95,24 @@ export class ProcessingHelper {
   public async processScreenshots() {
     const mainWindow = this.deps.getMainWindow()
     const view = this.deps.getView()
-    const mainQueue = this.deps.getScreenshotQueue()
-    const extraQueue = this.deps.getExtraScreenshotQueue()
 
-    console.log(`processScreenshots called - View: ${view}, Main queue: ${mainQueue.length}, Extra queue: ${extraQueue.length}`)
-
-    // If we have screenshots in main queue, it's a new question (even if view is "solutions")
-    if (mainQueue.length > 0) {
-      console.log("Processing main queue (new question)")
-      // Reset to queue view for new question
-      this.deps.setView("queue")
+    if (view === "queue") {
+      // Initial question processing
       return await this.processInitialQuestion()
-    }
-
-    // If we're in solutions view and have extra screenshots, it's debugging
-    if (view === "solutions" && extraQueue.length > 0) {
-      console.log("Processing extra queue (debugging)")
+    } else if (view === "solutions") {
+      // Debugging with conversation history
       return await this.processDebugging()
     }
 
-    console.log("No screenshots to process")
-    return { success: false, error: "No screenshots to process" }
+    return { success: false, error: "Invalid view state" }
   }
 
   private async processInitialQuestion() {
-    const mainWindow = this.deps.getMainWindow()
-
     try {
+      const mainWindow = this.deps.getMainWindow()
       const screenshots = this.deps.getScreenshotQueue()
-      console.log(`processInitialQuestion - Found ${screenshots.length} screenshots:`, screenshots)
 
       if (screenshots.length === 0) {
-        console.log("ERROR: Screenshot queue is empty in processInitialQuestion")
         return { success: false, error: "No screenshots to process" }
       }
 
@@ -135,10 +121,6 @@ export class ProcessingHelper {
       this.lastResponse = ""
 
       if (mainWindow) {
-        // Send INITIAL_START event to switch UI to solutions view
-        console.log("Sending INITIAL_START event to switch to solutions view")
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
-        
         mainWindow.webContents.send("processing-status", {
           message: "Analyzing screenshots...",
           progress: 30
@@ -161,29 +143,20 @@ export class ProcessingHelper {
       const language = await this.getLanguage()
 
       // SIMPLIFIED PROMPT - Single call
-      const systemPrompt = `You are an expert in Math, Python, Web Development, and English. Analyze the screenshots CAREFULLY and respond based on the question type you detect.
-
-CRITICAL: Read ALL text in the screenshots including:
-- Main question/problem statement
-- Helping instructions or hints
-- Test cases or requirements (especially for web development)
-- Example inputs/outputs
-- Any constraints or specifications
+      const systemPrompt = `You are an expert in Math, Python, Web Development, and English. Analyze the screenshots and respond based on the question type you detect.
 
 RESPONSE FORMATS:
 
 1. MULTIPLE CHOICE QUESTION (MCQ):
 Format:
+option {number}/{letter}) {option text}
+
 \`\`\`markdown
 Brief reasoning explanation
 Keep it concise
 Around 5 lines
 Explain why this is correct
 \`\`\`
-
-FINAL ANSWER: option {number}/{letter}) {option text}
-
-IMPORTANT: Always include the "FINAL ANSWER:" line at the END so users can quickly see the answer without reading the reasoning first.
 
 2. PYTHON QUESTION:
 Format:
@@ -194,33 +167,12 @@ Main concept: [Brief explanation]
 \`\`\`
 
 3. WEB DEVELOPMENT QUESTION:
-CRITICAL INSTRUCTIONS:
-- Read ALL text in screenshots carefully, including helping instructions and test case requirements
-- If test cases mention specific HTML elements, Bootstrap classes, or CSS properties - YOU MUST include them ALL
-- Common test requirements: container, row, col-md-*, text-center, d-md-*, d-none, specific HTML tags
-- Match the design exactly: colors, spacing, layout, fonts
-- NO external links, NO CDN links - use web-safe fonts only
-- Include ALL required Bootstrap classes even if they seem redundant
-
 Format:
 <html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solution</title>
-    <style>
-        /* Include Bootstrap-like styles inline if Bootstrap classes are required */
-    </style>
-</head>
-<body>
-    <!-- Complete HTML with ALL required elements and classes from test cases -->
-</body>
+complete html code
 </html>
 
 
-/* Additional CSS if needed */
 body {
   css code
 }
@@ -228,19 +180,15 @@ body {
   more css
 }
 
+IMPORTANT: NO external links, NO CDN, use web-safe fonts only. Analyze design screenshots carefully and match colors, spacing, layout exactly.
+
 4. ENGLISH/TEXT QUESTION:
 Format:
 \`\`\`text
 Complete answer
 \`\`\`
 
-AUTO-DETECT the question type and respond accordingly. User's preferred language: ${language}
-
-IMPORTANT REMINDERS:
-- For web development: If test cases list required elements/classes (like "container", "row", "col-md-", "text-center", "d-md-", "d-none"), include ALL of them in your solution
-- Read helping instructions carefully - they often contain crucial hints
-- Match designs pixel-perfect when screenshots show visual layouts
-- Test cases are requirements, not suggestions - satisfy every single one`
+AUTO-DETECT the question type and respond accordingly. User's preferred language: ${language}`
 
       let responseText = ""
 
@@ -251,54 +199,13 @@ IMPORTANT REMINDERS:
         })
       }
 
-      // Call appropriate API with retry logic
-      const maxRetries = 3
-      let lastError: any = null
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          if (config.apiProvider === "openai") {
-            responseText = await this.callOpenAI(systemPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "gemini") {
-            responseText = await this.callGemini(systemPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "anthropic") {
-            responseText = await this.callAnthropic(systemPrompt, imageDataList, signal)
-          }
-
-          // Success - break retry loop
-          break
-
-        } catch (apiError: any) {
-          lastError = apiError
-          console.error(`API call attempt ${attempt}/${maxRetries} failed:`, apiError.message)
-
-          // Check if it's a 503 or network error
-          const is503 = apiError.response?.status === 503 || apiError.code === 'ERR_BAD_RESPONSE'
-          const isNetworkError = apiError.code === 'ECONNRESET' || apiError.code === 'ETIMEDOUT'
-
-          if ((is503 || isNetworkError) && attempt < maxRetries) {
-            // Wait before retry (exponential backoff)
-            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
-            console.log(`Waiting ${waitTime}ms before retry...`)
-
-            if (mainWindow) {
-              mainWindow.webContents.send("processing-status", {
-                message: `API temporarily unavailable. Retrying (${attempt}/${maxRetries})...`,
-                progress: 60
-              })
-            }
-
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-          } else {
-            // Non-retryable error or max retries reached
-            throw apiError
-          }
-        }
-      }
-
-      // If we exhausted retries without success
-      if (!responseText && lastError) {
-        throw lastError
+      // Call appropriate API
+      if (config.apiProvider === "openai") {
+        responseText = await this.callOpenAI(systemPrompt, imageDataList, signal)
+      } else if (config.apiProvider === "gemini") {
+        responseText = await this.callGemini(systemPrompt, imageDataList, signal)
+      } else if (config.apiProvider === "anthropic") {
+        responseText = await this.callAnthropic(systemPrompt, imageDataList, signal)
       }
 
       // Store for debugging
@@ -320,69 +227,25 @@ IMPORTANT REMINDERS:
           message: "Complete!",
           progress: 100
         })
-
-        console.log("Sending SOLUTION_SUCCESS event with data:", JSON.stringify(parsedResponse).substring(0, 200))
+        
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
           parsedResponse
         )
       }
 
-      // Clear the main queue after successful processing
-      this.screenshotHelper.clearMainScreenshotQueue()
-      
       this.deps.setView("solutions")
-      console.log("Processing completed successfully, view set to solutions")
       return { success: true, data: parsedResponse }
 
     } catch (error: any) {
       console.error("Processing error:", error)
-
-      // Reset view back to queue on error
-      this.deps.setView("queue")
-
-      // Send user-friendly error message
-      if (mainWindow) {
-        let errorMessage = "Processing failed"
-        let errorTitle = "Error"
-
-        if (error.response?.status === 503) {
-          errorTitle = "Service Unavailable (503)"
-          errorMessage = "API service temporarily unavailable. Please try again in a moment."
-        } else if (error.code === 'ERR_BAD_RESPONSE') {
-          errorTitle = "Bad Response"
-          errorMessage = "API returned an error. Please try again."
-        } else if (error.message?.includes('timeout')) {
-          errorTitle = "Timeout"
-          errorMessage = "Request timed out. Please try again."
-        } else if (error.message) {
-          errorMessage = error.message
-        }
-
-        mainWindow.webContents.send("processing-status", {
-          message: errorMessage,
-          progress: 0,
-          error: true
-        })
-
-        // Send error notification toast
-        mainWindow.webContents.send("show-error-notification", {
-          title: errorTitle,
-          message: errorMessage
-        })
-
-        // Also send reset-view to ensure UI is in sync
-        mainWindow.webContents.send("reset-view")
-      }
-
       return { success: false, error: error.message || "Processing failed" }
     }
   }
 
   private async processDebugging() {
-    const mainWindow = this.deps.getMainWindow()
-
     try {
+      const mainWindow = this.deps.getMainWindow()
       const screenshots = this.deps.getExtraScreenshotQueue()
 
       if (screenshots.length === 0) {
@@ -390,9 +253,6 @@ IMPORTANT REMINDERS:
       }
 
       if (mainWindow) {
-        // Send DEBUG_START event
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START)
-        
         mainWindow.webContents.send("processing-status", {
           message: "Analyzing errors...",
           progress: 30
@@ -427,50 +287,13 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
         })
       }
 
-      // Call API with retry logic
-      const maxRetries = 3
-      let lastError: any = null
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          if (config.apiProvider === "openai") {
-            responseText = await this.callOpenAIWithHistory(debugPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "gemini") {
-            responseText = await this.callGeminiWithHistory(debugPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "anthropic") {
-            responseText = await this.callAnthropicWithHistory(debugPrompt, imageDataList, signal)
-          }
-
-          // Success - break retry loop
-          break
-
-        } catch (apiError: any) {
-          lastError = apiError
-          console.error(`Debug API call attempt ${attempt}/${maxRetries} failed:`, apiError.message)
-
-          const is503 = apiError.response?.status === 503 || apiError.code === 'ERR_BAD_RESPONSE'
-          const isNetworkError = apiError.code === 'ECONNRESET' || apiError.code === 'ETIMEDOUT'
-
-          if ((is503 || isNetworkError) && attempt < maxRetries) {
-            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
-            console.log(`Waiting ${waitTime}ms before retry...`)
-
-            if (mainWindow) {
-              mainWindow.webContents.send("processing-status", {
-                message: `API temporarily unavailable. Retrying (${attempt}/${maxRetries})...`,
-                progress: 60
-              })
-            }
-
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-          } else {
-            throw apiError
-          }
-        }
-      }
-
-      if (!responseText && lastError) {
-        throw lastError
+      // Call API with conversation history
+      if (config.apiProvider === "openai") {
+        responseText = await this.callOpenAIWithHistory(debugPrompt, imageDataList, signal)
+      } else if (config.apiProvider === "gemini") {
+        responseText = await this.callGeminiWithHistory(debugPrompt, imageDataList, signal)
+      } else if (config.apiProvider === "anthropic") {
+        responseText = await this.callAnthropicWithHistory(debugPrompt, imageDataList, signal)
       }
 
       // Update conversation
@@ -491,53 +314,17 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
           message: "Fixed!",
           progress: 100
         })
-
+        
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.DEBUG_SUCCESS,
           parsedResponse
         )
       }
 
-      // Clear the extra queue after successful debugging
-      this.screenshotHelper.clearExtraScreenshotQueue()
-
       return { success: true, data: parsedResponse }
 
     } catch (error: any) {
       console.error("Debug error:", error)
-
-      // Keep view as "solutions" for debugging errors (user can retry with Ctrl+Enter)
-
-      if (mainWindow) {
-        let errorMessage = "Debugging failed"
-        let errorTitle = "Debug Error"
-
-        if (error.response?.status === 503) {
-          errorTitle = "Service Unavailable (503)"
-          errorMessage = "API service temporarily unavailable. Please try again in a moment."
-        } else if (error.code === 'ERR_BAD_RESPONSE') {
-          errorTitle = "Bad Response"
-          errorMessage = "API returned an error. Please try again."
-        } else if (error.message?.includes('timeout')) {
-          errorTitle = "Timeout"
-          errorMessage = "Request timed out. Please try again."
-        } else if (error.message) {
-          errorMessage = error.message
-        }
-
-        mainWindow.webContents.send("processing-status", {
-          message: errorMessage,
-          progress: 0,
-          error: true
-        })
-
-        // Send error notification toast
-        mainWindow.webContents.send("show-error-notification", {
-          title: errorTitle,
-          message: errorMessage
-        })
-      }
-
       return { success: false, error: error.message || "Debugging failed" }
     }
   }
@@ -573,12 +360,12 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     if (!this.openaiClient) throw new Error("OpenAI not initialized")
 
     const config = configHelper.loadConfig()
-
+    
     // Build messages with history
     const messages: any[] = [
       { role: "system", content: "You are an expert debugging assistant." }
     ]
-
+    
     // Add conversation history (simplified)
     if (this.conversationHistory.length > 0) {
       messages.push({
@@ -586,7 +373,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
         content: this.lastResponse
       })
     }
-
+    
     // Add current debug request
     messages.push({
       role: "user",
@@ -646,10 +433,10 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     if (!this.geminiApiKey) throw new Error("Gemini not initialized")
 
     const config = configHelper.loadConfig()
-
+    
     // Gemini conversation format
     const messages: GeminiMessage[] = []
-
+    
     // Add history
     if (this.lastResponse) {
       messages.push({
@@ -661,7 +448,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
         parts: [{ text: this.lastResponse }]
       })
     }
-
+    
     // Add current debug request
     messages.push({
       role: "user",
@@ -723,10 +510,10 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     if (!this.anthropicClient) throw new Error("Anthropic not initialized")
 
     const config = configHelper.loadConfig()
-
+    
     // Build messages with history
     const messages: any[] = []
-
+    
     if (this.lastResponse) {
       messages.push({
         role: "user",
@@ -737,7 +524,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
         content: [{ type: "text", text: this.lastResponse }]
       })
     }
-
+    
     messages.push({
       role: "user",
       content: [
@@ -766,98 +553,51 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
   // RESPONSE PARSING
   private parseResponse(response: string): any {
     // Detect question type and parse accordingly
-
-    // MCQ Detection - look for "option X)" format (with or without letter)
-    if (response.match(/option\s+\d+\)/i) || response.match(/FINAL ANSWER:/i)) {
+    
+    // MCQ Detection
+    if (response.match(/option\s+\d+\/[A-D]\)/i)) {
       return this.parseMCQ(response)
     }
-
+    
     // Web Dev Detection (HTML + CSS)
     if (response.includes('<html>') || response.includes('<!DOCTYPE html>')) {
       return this.parseWebDev(response)
     }
-
+    
     // Python Detection
     if (response.includes('```python')) {
       return this.parsePython(response)
     }
-
+    
     // Default: Text answer
     return this.parseText(response)
   }
 
   private parseMCQ(response: string): any {
-    // Try to find "FINAL ANSWER:" first (new format)
-    // Support: "option 4) text", "option c) text", "option 4/A) text", etc.
-    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*option\s+([a-z0-9]+)(?:\/([a-z]))?\)\s*(.+?)$/im)
-    
-    // Fallback to finding any "option X)" pattern if FINAL ANSWER not found
-    if (!finalAnswerMatch) {
-      finalAnswerMatch = response.match(/option\s+([a-z0-9]+)(?:\/([a-z]))?\)\s*(.+?)$/im)
-    }
-    
+    const optionMatch = response.match(/option\s+(\d+)\/([A-D])\)\s*(.+?)(?=\n|$)/i)
     const reasoningMatch = response.match(/```markdown\s*([\s\S]*?)```/)
     
-    let answer = "Answer not found"
-    if (finalAnswerMatch) {
-      const optionNum = finalAnswerMatch[1]
-      const optionLetter = finalAnswerMatch[2] // May be undefined
-      const optionText = finalAnswerMatch[3].trim()
-      
-      if (optionLetter) {
-        answer = `option ${optionNum}/${optionLetter}) ${optionText}`
-      } else {
-        answer = `option ${optionNum}) ${optionText}`
-      }
-    }
-    
-    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided"
-    
-    // Format the response with highlighted final answer at the end
-    let formattedCode = response
-    if (finalAnswerMatch && !response.includes("FINAL ANSWER:")) {
-      // If old format, add FINAL ANSWER section at the end
-      formattedCode = response + `\n\n**FINAL ANSWER:** ${answer}`
-    }
-
     return {
       question_type: "multiple_choice",
-      answer: answer,
-      reasoning: reasoning,
-      code: formattedCode,
-      thoughts: [reasoning],
-      final_answer_highlight: answer // For UI to display prominently
+      answer: optionMatch ? `option ${optionMatch[1]}/${optionMatch[2]}) ${optionMatch[3]}` : "Answer not found",
+      reasoning: reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided",
+      code: response,
+      thoughts: [reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided"]
     }
   }
 
   private parseWebDev(response: string): any {
-    // Extract HTML (look for complete HTML document or just HTML tags)
-    let htmlMatch = response.match(/<!DOCTYPE html>[\s\S]*?<\/html>/i)
-    if (!htmlMatch) {
-      htmlMatch = response.match(/<html[\s\S]*?<\/html>/i)
-    }
+    // Extract HTML
+    const htmlMatch = response.match(/<html>[\s\S]*?<\/html>/i)
     const html = htmlMatch ? htmlMatch[0] : ""
-
-    // Extract CSS - look for CSS after HTML or in style blocks
-    let css = ""
-
-    // First try to get CSS after the HTML
-    if (html) {
-      const afterHTML = response.substring(response.indexOf('</html>') + 7)
-      css = afterHTML.trim()
-    }
-
-    // If no CSS found after HTML, try to extract from style tags
-    if (!css) {
-      const styleMatch = response.match(/<style[\s\S]*?>([\s\S]*?)<\/style>/i)
-      if (styleMatch) {
-        css = styleMatch[1].trim()
-      }
-    }
-
-    // Combine for display (backward compatibility)
-    const code = html + (css ? "\n\n" + css : "")
-
+    
+    // Extract CSS (everything after HTML)
+    const afterHTML = response.substring(response.indexOf('</html>') + 7)
+    const css = afterHTML.trim()
+    
+    // Combine for display
+    const code = html + "\n\n" + css
+    
     return {
       question_type: "web_dev",
       code: code,
@@ -871,7 +611,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
   private parsePython(response: string): any {
     const conceptMatch = response.match(/Main concept:\s*(.+?)(?=\n|```)/i)
     const codeMatch = response.match(/```python\s*([\s\S]*?)```/)
-
+    
     return {
       question_type: "python",
       code: codeMatch ? codeMatch[1].trim() : response,
@@ -884,7 +624,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
   private parseText(response: string): any {
     const textMatch = response.match(/```text\s*([\s\S]*?)```/)
     const text = textMatch ? textMatch[1].trim() : response
-
+    
     return {
       question_type: "text",
       code: text,

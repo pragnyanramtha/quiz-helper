@@ -33,7 +33,7 @@ export class ScreenshotHelper {
     );
     this.tempDir = path.join(
       app.getPath("temp"),
-      "interview-coder-screenshots"
+      "cheatsheet-ai-screenshots"
     );
 
     // Create directories if they don't exist
@@ -421,5 +421,22 @@ export class ScreenshotHelper {
       }
     });
     this.extraScreenshotQueue = [];
+  }
+
+  public clearMainScreenshotQueue(): void {
+    // Clear main screenshotQueue
+    this.screenshotQueue.forEach((screenshotPath) => {
+      if (fs.existsSync(screenshotPath)) {
+        fs.unlink(screenshotPath, (err) => {
+          if (err)
+            console.error(
+              `Error deleting screenshot at ${screenshotPath}:`,
+              err
+            );
+        });
+      }
+    });
+    this.screenshotQueue = [];
+    console.log("Main screenshot queue cleared");
   }
 }

@@ -482,8 +482,23 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 <div className="text-white/70">Delete Last Screenshot</div>
                 <div className="text-white/90 font-mono">Ctrl+Backspace / Cmd+Backspace</div>
                 
-                <div className="text-white/70">Copy Code to Clipboard</div>
+                <div className="text-white/70">Quick Answer (Reset+Capture+Process)</div>
+                <div className="text-white/90 font-mono">Ctrl+D</div>
+                
+                <div className="text-white/70">Toggle Window Visibility</div>
+                <div className="text-white/90 font-mono">Ctrl+B / Alt+1</div>
+                
+                <div className="text-white/70">Cycle Models</div>
+                <div className="text-white/90 font-mono">Ctrl+\ / Alt+2</div>
+                
+                <div className="text-white/70">Type Clipboard Content</div>
+                <div className="text-white/90 font-mono">Alt+3 / Ctrl+Shift+V</div>
+                
+                <div className="text-white/70">Copy HTML/Code to Clipboard</div>
                 <div className="text-white/90 font-mono">Ctrl+Shift+C / Cmd+Shift+C</div>
+                
+                <div className="text-white/70">Copy CSS to Clipboard</div>
+                <div className="text-white/90 font-mono">Ctrl+Shift+D / Cmd+Shift+D</div>
 
                 <div className="text-white/70">Reset View</div>
                 <div className="text-white/90 font-mono">Ctrl+R / Cmd+R</div>

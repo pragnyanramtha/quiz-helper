@@ -1,6 +1,7 @@
-import { globalShortcut, app } from "electron"
+import { globalShortcut, app, clipboard } from "electron"
 import { IShortcutsHelperDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
+import { keyboard, Key } from "@nut-tree-fork/nut-js"
 
 export class ShortcutsHelper {
   private deps: IShortcutsHelperDeps
@@ -12,13 +13,13 @@ export class ShortcutsHelper {
   private adjustOpacity(delta: number): void {
     const mainWindow = this.deps.getMainWindow();
     if (!mainWindow) return;
-    
+
     let currentOpacity = mainWindow.getOpacity();
     let newOpacity = Math.max(0.1, Math.min(1.0, currentOpacity + delta));
     console.log(`Adjusting opacity from ${currentOpacity} to ${newOpacity}`);
-    
+
     mainWindow.setOpacity(newOpacity);
-    
+
     // Save the opacity setting to config without re-initializing the client
     try {
       const config = configHelper.loadConfig();
@@ -27,7 +28,7 @@ export class ShortcutsHelper {
     } catch (error) {
       console.error('Error saving opacity to config:', error);
     }
-    
+
     // If we're making the window visible, also make sure it's shown and interaction is enabled
     if (newOpacity > 0.1 && !this.deps.isVisible()) {
       this.deps.toggleMainWindow();
@@ -71,8 +72,64 @@ export class ShortcutsHelper {
     })
 
     globalShortcut.register("CommandOrControl+Enter", async () => {
-      await this.deps.processingHelper?.processScreenshots()
+      console.log("Ctrl+Enter pressed - Processing screenshots...")
+      try {
+        const result = await this.deps.processingHelper?.processScreenshots()
+        if (result) {
+          console.log("Processing result:", result.success ? "SUCCESS" : `FAILED: ${result.error}`)
+        }
+      } catch (error) {
+        console.error("Unexpected error in Ctrl+Enter handler:", error)
+      }
     })
+
+    // Quick Answer function - Reset, Capture, and Process in one go
+    const quickAnswer = async () => {
+      console.log("Quick Answer triggered: Reset → Capture → Process")
+      const mainWindow = this.deps.getMainWindow()
+
+      try {
+        // Step 1: Reset (like Ctrl+R)
+        console.log("Step 1: Resetting queues...")
+        this.deps.processingHelper?.cancelOngoingRequests()
+        this.deps.clearQueues()
+        this.deps.setView("queue")
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("reset-view")
+          mainWindow.webContents.send("reset")
+        }
+
+        // Small delay to ensure reset completes
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Step 2: Capture screenshot (like Ctrl+H)
+        console.log("Step 2: Capturing screenshot...")
+        if (mainWindow) {
+          const screenshotPath = await this.deps.takeScreenshot()
+          const preview = await this.deps.getImagePreview(screenshotPath)
+          mainWindow.webContents.send("screenshot-taken", {
+            path: screenshotPath,
+            preview
+          })
+
+          // Small delay to ensure screenshot is added to queue
+          await new Promise(resolve => setTimeout(resolve, 200))
+
+          // Step 3: Process (like Ctrl+Enter)
+          console.log("Step 3: Processing screenshot...")
+          const result = await this.deps.processingHelper?.processScreenshots()
+          if (result) {
+            console.log("Quick Answer result:", result.success ? "SUCCESS" : `FAILED: ${result.error}`)
+          }
+        }
+      } catch (error) {
+        console.error("Error in Quick Answer:", error)
+      }
+    }
+
+    // Quick Answer shortcut - Ctrl+D
+    globalShortcut.register("CommandOrControl+D", quickAnswer)
 
     globalShortcut.register("CommandOrControl+R", () => {
       console.log(
@@ -124,6 +181,12 @@ export class ShortcutsHelper {
       this.deps.toggleMainWindow()
     })
 
+    // Alias for Ctrl+B - Alt+1 to toggle visibility
+    globalShortcut.register("Alt+1", () => {
+      console.log("Alt+1 pressed. Toggling window visibility (alias for Ctrl+B).")
+      this.deps.toggleMainWindow()
+    })
+
     // Alias for Ctrl+B - Ctrl+I to toggle visibility
     globalShortcut.register("CommandOrControl+I", () => {
       console.log("Command/Ctrl + I pressed. Toggling window visibility (alias for Ctrl+B).")
@@ -145,7 +208,7 @@ export class ShortcutsHelper {
       console.log("Command/Ctrl + ] pressed. Increasing opacity.")
       this.adjustOpacity(0.1)
     })
-    
+
     // Zoom controls
     globalShortcut.register("CommandOrControl+-", () => {
       console.log("Command/Ctrl + - pressed. Zooming out.")
@@ -155,7 +218,7 @@ export class ShortcutsHelper {
         mainWindow.webContents.setZoomLevel(currentZoom - 0.5)
       }
     })
-    
+
     globalShortcut.register("CommandOrControl+0", () => {
       console.log("Command/Ctrl + 0 pressed. Resetting zoom.")
       const mainWindow = this.deps.getMainWindow()
@@ -163,7 +226,7 @@ export class ShortcutsHelper {
         mainWindow.webContents.setZoomLevel(0)
       }
     })
-    
+
     globalShortcut.register("CommandOrControl+=", () => {
       console.log("Command/Ctrl + = pressed. Zooming in.")
       const mainWindow = this.deps.getMainWindow()
@@ -173,15 +236,15 @@ export class ShortcutsHelper {
       }
     })
 
-    // Ctrl+\ to cycle through models in the same family
-    globalShortcut.register("CommandOrControl+\\", () => {
-      console.log("Command/Ctrl + \\ pressed. Cycling through models in the same family.")
+    // Model cycling function
+    const cycleModels = () => {
+      console.log("Cycling through models in the same family.")
       try {
         const config = configHelper.loadConfig()
         const provider = config.apiProvider
-        
+
         let newModel = ""
-        
+
         if (provider === "gemini") {
           // Cycle through Gemini models: pro -> flash -> lite -> pro
           const geminiModels = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
@@ -201,7 +264,7 @@ export class ShortcutsHelper {
           const nextIndex = (currentIndex + 1) % claudeModels.length
           newModel = claudeModels[nextIndex]
         }
-        
+
         if (newModel) {
           configHelper.updateConfig({
             extractionModel: newModel,
@@ -209,7 +272,7 @@ export class ShortcutsHelper {
             debuggingModel: newModel
           })
           console.log(`Switched to model: ${newModel}`)
-          
+
           // Notify the renderer process about the model change
           const mainWindow = this.deps.getMainWindow()
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -219,18 +282,34 @@ export class ShortcutsHelper {
       } catch (error) {
         console.error("Error cycling models:", error)
       }
-    })
-    
-    // Copy code to clipboard shortcut
+    }
+
+    // Ctrl+\ to cycle through models in the same family
+    globalShortcut.register("CommandOrControl+\\", cycleModels)
+
+    // Alt+2 alias for cycling models
+    globalShortcut.register("Alt+2", cycleModels)
+
+    // Copy HTML to clipboard shortcut (for web dev questions)
     globalShortcut.register("CommandOrControl+Shift+C", () => {
-      console.log("Command/Ctrl + Shift + C pressed. Copying code to clipboard.")
+      console.log("Command/Ctrl + Shift + C pressed. Copying HTML to clipboard.")
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
-        // Send an event to the renderer to copy the code
-        mainWindow.webContents.send("copy-code-to-clipboard")
+        // Send an event to the renderer to copy HTML
+        mainWindow.webContents.send("copy-html-to-clipboard")
       }
     })
-    
+
+    // Copy CSS to clipboard shortcut (for web dev questions)
+    globalShortcut.register("CommandOrControl+Shift+D", () => {
+      console.log("Command/Ctrl + Shift + D pressed. Copying CSS to clipboard.")
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        // Send an event to the renderer to copy CSS
+        mainWindow.webContents.send("copy-css-to-clipboard")
+      }
+    })
+
     // Delete last screenshot shortcut
     globalShortcut.register("CommandOrControl+Backspace", () => {
       console.log("Command/Ctrl + Backspace pressed. Deleting last screenshot.")
@@ -240,7 +319,65 @@ export class ShortcutsHelper {
         mainWindow.webContents.send("delete-last-screenshot")
       }
     })
+
+    // Alt+3 - Type out clipboard content
+    const alt3Registered = globalShortcut.register("Alt+3", async () => {
+      console.log("Alt+3 pressed. Typing out clipboard content...")
+      try {
+        const clipboardText = clipboard.readText()
+
+        if (!clipboardText) {
+          console.log("Clipboard is empty")
+          return
+        }
+
+        console.log(`Typing ${clipboardText.length} characters from clipboard`)
+
+        // Small delay to allow user to focus the target window
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Use nut-js to type the text
+        await keyboard.type(clipboardText)
+        
+        console.log('Successfully typed clipboard content')
+
+      } catch (error) {
+        console.error("Error in Alt+3 handler:", error)
+      }
+    })
     
+    if (alt3Registered) {
+      console.log("Alt+3 shortcut registered successfully")
+    } else {
+      console.error("Failed to register Alt+3 shortcut - may be in use by another application")
+    }
+    
+    // Backup: Ctrl+Shift+V as alternative for typing clipboard
+    globalShortcut.register("CommandOrControl+Shift+V", async () => {
+      console.log("Ctrl+Shift+V pressed. Typing out clipboard content...")
+      try {
+        const clipboardText = clipboard.readText()
+
+        if (!clipboardText) {
+          console.log("Clipboard is empty")
+          return
+        }
+
+        console.log(`Typing ${clipboardText.length} characters from clipboard`)
+
+        // Small delay to allow user to focus the target window
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Use nut-js to type the text
+        await keyboard.type(clipboardText)
+        
+        console.log('Successfully typed clipboard content')
+
+      } catch (error) {
+        console.error("Error in Ctrl+Shift+V handler:", error)
+      }
+    })
+
     // Unregister shortcuts when quitting
     app.on("will-quit", () => {
       globalShortcut.unregisterAll()

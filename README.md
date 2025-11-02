@@ -1,9 +1,9 @@
-# Quiz helper - Free & Open Source
+# CheatSheet AI - Free & Open Source
 
 
 > ## 🔑 API KEY INFORMATION
 >
-> I have tested and confirmed that **Gemini, OpenAI, and Anthropic APIs work properly** with the current version. If you are experiencing issues with your API keys:
+> I have only tested that Gemini **Gemini API keys are working** **Feel free to test OpenAI, and Anthropic APIs to check if theywork properly** with the current version. If you are experiencing issues with your API keys:
 >
 > - Try deleting your API key entry from the config file located in your user data directory
 > - Log out and log back in to the application
@@ -23,11 +23,15 @@ All it takes is modest JavaScript/TypeScript knowledge and understanding of the 
 
 ## Features
 
-- 🎯 **99% Invisibility**: Undetectable window that bypasses most screen capture methods
-- �  **Smart Screenshot Capture**: Capture both question text and code separately for better analysis
-- 🤖 **AI-Powered Analysis**: Automatically extracts and analyzes coding problems using GPT-5, Gemini, or Claude
-- � **Solution Generation**: Get detailed explanations and optimized solutions
-- � **Real-time Debugging**: Debug your code with AI assistance and structured feedback
+- 🎯 **Invisible Overlay**: Undetectable window that bypasses most screen capture methods
+- 📸 **Smart Screenshot Capture**: Capture questions, code, and web designs with a single keystroke
+- 🤖 **Multi-AI Support**: Works with OpenAI GPT-5, Google Gemini, and Anthropic Claude
+- 💡 **Auto-Detection**: Automatically detects question type (MCQ, Python, Web Dev, Text)
+- ⚡ **Quick Answer Mode**: One-key solution - capture and process automatically (Ctrl+D)
+- 🎨 **Web Development**: Generates complete HTML/CSS matching design screenshots
+- 📋 **Smart Copy**: Separate copy for HTML and CSS, plus auto-type clipboard feature
+- 🔄 **Model Switching**: Quickly cycle through AI models with keyboard shortcuts
+- 🐛 **Conversational Debugging**: Fix errors by sending additional screenshots
 - 🎨 **Advanced Window Management**: Freely move, resize, change opacity, and zoom the window
 - 🔄 **Multi-Model Support**: Choose between OpenAI (GPT-5/5-mini), Google Gemini (Pro/Flash/Lite), or Anthropic Claude models
 - 🔀 **Quick Model Switching**: Cycle through models in the same family with a single shortcut
@@ -40,7 +44,7 @@ All it takes is modest JavaScript/TypeScript knowledge and understanding of the 
 The application uses undetectable global keyboard shortcuts that won't be detected by browsers or other applications:
 
 ### Core Functions
-- **Toggle Window Visibility**: `Ctrl/Cmd + B` or `Ctrl/Cmd + I`
+- **Toggle Window Visibility**: `Ctrl/Cmd + B` or `Ctrl/Cmd + I` or `Alt + 1`
 - **Take Screenshot**: `Ctrl/Cmd + H` or `Ctrl/Cmd + M`
 - **Process Screenshots**: `Ctrl/Cmd + Enter`
 - **Start New Problem**: `Ctrl/Cmd + R`
@@ -95,12 +99,51 @@ Note: The application is **NOT** invisible to:
 - Screen Recording Permission for Terminal/IDE
   - On macOS:
     1. Go to System Preferences > Security & Privacy > Privacy > Screen Recording
-    2. Ensure that Interview Coder has screen recording permission enabled
-    3. Restart Interview Coder after enabling permissions
+    2. Ensure that CheatSheet AI has screen recording permission enabled
+    3. Restart CheatSheet AI after enabling permissions
   - On Windows:
     - No additional permissions needed
   - On Linux:
     - May require `xhost` access depending on your distribution
+
+## Keyboard Shortcuts
+
+### Essential Shortcuts
+- **Ctrl+D** - Quick Answer (Reset → Capture → Process all in one)
+- **Ctrl+H** - Take Screenshot
+- **Ctrl+Enter** - Process Screenshots
+- **Ctrl+R** - Reset/Clear Everything
+
+### Window Control
+- **Ctrl+B** or **Alt+1** - Toggle Window Visibility
+- **Ctrl+I** - Toggle Window Visibility (alias)
+- **Ctrl+Q** - Quit Application
+
+### Navigation & View
+- **Ctrl+Arrow Keys** - Scroll through content
+- **Ctrl+[** - Decrease Opacity
+- **Ctrl+]** - Increase Opacity
+- **Ctrl+-** - Zoom Out
+- **Ctrl+0** - Reset Zoom
+- **Ctrl+=** - Zoom In
+
+### Window Movement
+- **Ctrl+Left** - Move Window Left
+- **Ctrl+Right** - Move Window Right
+- **Ctrl+Up** - Move Window Up
+- **Ctrl+Down** - Move Window Down
+
+### AI & Models
+- **Ctrl+\\** or **Alt+2** - Cycle Through Models (GPT-5 → GPT-5-mini → Gemini Pro → Gemini Flash → etc.)
+
+### Copy & Paste
+- **Ctrl+Shift+C** - Copy HTML/Code to Clipboard
+- **Ctrl+Shift+D** - Copy CSS to Clipboard (extracts from `<style>` tags)
+- **Ctrl+Shift+V** or **Alt+3** - Type Clipboard Content (bypasses paste restrictions)
+
+### Screenshot Management
+- **Ctrl+M** - Take Screenshot (alias for Ctrl+H)
+- **Ctrl+Backspace** - Delete Last Screenshot
 
 ## Running the Application
 
@@ -109,8 +152,8 @@ Note: The application is **NOT** invisible to:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/greeneu/interview-coder-withoupaywall-opensource.git
-cd interview-coder-withoupaywall-opensource
+git clone https://github.com/greeneu/cheatsheet-ai.git
+cd cheatsheet-ai
 ```
 
 2. Install dependencies:

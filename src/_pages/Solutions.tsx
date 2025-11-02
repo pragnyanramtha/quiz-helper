@@ -125,6 +125,10 @@ const Solutions: React.FC<SolutionsProps> = ({
     useState<ProblemStatementData | null>(null)
   const [solutionData, setSolutionData] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
+  const [htmlData, setHtmlData] = useState<string | null>(null)
+  const [cssData, setCssData] = useState<string | null>(null)
+  const [questionType, setQuestionType] = useState<string | null>(null)
+  const [finalAnswer, setFinalAnswer] = useState<string | null>(null)
 
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const [tooltipHeight, setTooltipHeight] = useState(0)
@@ -259,12 +263,20 @@ const Solutions: React.FC<SolutionsProps> = ({
         console.log({ data })
         const solutionData = {
           code: data.code,
-          thoughts: data.thoughts
+          thoughts: data.thoughts,
+          html: data.html,
+          css: data.css,
+          question_type: data.question_type,
+          final_answer_highlight: data.final_answer_highlight
         }
 
         queryClient.setQueryData(["solution"], solutionData)
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
+        setHtmlData(solutionData.html || null)
+        setCssData(solutionData.css || null)
+        setQuestionType(solutionData.question_type || null)
+        setFinalAnswer(solutionData.final_answer_highlight || null)
 
         // Fetch latest screenshots when solution is successful
         const fetchScreenshots = async () => {
@@ -348,14 +360,15 @@ const Solutions: React.FC<SolutionsProps> = ({
     return () => unsubscribe()
   }, [queryClient])
 
-  // Listen for copy code event from global shortcut
+  // Listen for copy HTML event from global shortcut (Ctrl+Shift+C)
   useEffect(() => {
-    const cleanup = window.electronAPI.onCopyCodeToClipboard(() => {
-      if (solutionData) {
+    const cleanup = window.electronAPI.onCopyHtmlToClipboard(() => {
+      const dataToCopy = questionType === "web_dev" && htmlData ? htmlData : solutionData
+      
+      if (dataToCopy) {
         try {
-          // Create a temporary textarea to copy text
           const textarea = document.createElement('textarea')
-          textarea.value = solutionData
+          textarea.value = dataToCopy
           textarea.style.position = 'fixed'
           textarea.style.opacity = '0'
           document.body.appendChild(textarea)
@@ -364,16 +377,65 @@ const Solutions: React.FC<SolutionsProps> = ({
           document.body.removeChild(textarea)
           
           if (success) {
-            showToast("Copied!", "Code copied to clipboard", "success")
+            const message = questionType === "web_dev" ? "HTML copied to clipboard" : "Code copied to clipboard"
+            showToast("Copied!", message, "success")
           } else {
-            showToast("Error", "Failed to copy code to clipboard", "error")
+            showToast("Error", "Failed to copy to clipboard", "error")
           }
         } catch (err) {
-          console.error("Failed to copy code:", err)
-          showToast("Error", "Failed to copy code to clipboard", "error")
+          console.error("Failed to copy:", err)
+          showToast("Error", "Failed to copy to clipboard", "error")
         }
       } else {
         showToast("No Code", "No code available to copy", "neutral")
+      }
+    })
+
+    return () => {
+      cleanup()
+    }
+  }, [solutionData, htmlData, questionType, showToast])
+
+  // Listen for copy CSS event from global shortcut (Ctrl+Shift+D)
+  useEffect(() => {
+    const cleanup = window.electronAPI.onCopyCssToClipboard(() => {
+      if (solutionData) {
+        try {
+          // Extract CSS from <style> tags in the solution
+          const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi
+          const matches = []
+          let match
+          
+          while ((match = styleRegex.exec(solutionData)) !== null) {
+            matches.push(match[1].trim())
+          }
+          
+          if (matches.length > 0) {
+            const cssContent = matches.join('\n\n')
+            
+            const textarea = document.createElement('textarea')
+            textarea.value = cssContent
+            textarea.style.position = 'fixed'
+            textarea.style.opacity = '0'
+            document.body.appendChild(textarea)
+            textarea.select()
+            const success = document.execCommand('copy')
+            document.body.removeChild(textarea)
+            
+            if (success) {
+              showToast("Copied!", "CSS copied to clipboard", "success")
+            } else {
+              showToast("Error", "Failed to copy CSS to clipboard", "error")
+            }
+          } else {
+            showToast("No CSS", "No <style> tags found in the solution", "neutral")
+          }
+        } catch (err) {
+          console.error("Failed to copy CSS:", err)
+          showToast("Error", "Failed to copy CSS to clipboard", "error")
+        }
+      } else {
+        showToast("No Code", "No solution available to extract CSS from", "neutral")
       }
     })
 
@@ -498,6 +560,18 @@ const Solutions: React.FC<SolutionsProps> = ({
                       }
                       isLoading={!thoughtsData}
                     />
+
+                    {/* MCQ Final Answer Highlight */}
+                    {questionType === "multiple_choice" && finalAnswer && (
+                      <div className="mb-4 p-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-500/50 rounded-lg">
+                        <h2 className="text-[13px] font-medium text-white tracking-wide mb-2">
+                          ✓ FINAL ANSWER
+                        </h2>
+                        <p className="text-lg font-bold text-green-400">
+                          {finalAnswer}
+                        </p>
+                      </div>
+                    )}
 
                     <SolutionSection
                       title="Solution"

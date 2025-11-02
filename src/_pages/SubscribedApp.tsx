@@ -50,6 +50,17 @@ const SubscribedApp: React.FC<SubscribedAppProps> = ({
     }
   }, [showToast])
 
+  // Listen for error notifications
+  useEffect(() => {
+    const cleanup = window.electronAPI.onShowErrorNotification((data: { title: string; message: string }) => {
+      showToast(data.title, data.message, "error")
+    })
+
+    return () => {
+      cleanup()
+    }
+  }, [showToast])
+
   // Let's ensure we reset queries etc. if some electron signals happen
   useEffect(() => {
     const cleanup = window.electronAPI.onResetView(() => {
