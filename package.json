@@ -17,7 +17,7 @@
     "package-win": "npm run build && electron-builder build --win"
   },
   "build": {
-    "appId": "com.chunginlee.interviewcoder",
+    "appId": "com.pragnyanramtha.cheatsheet-ai",
     "productName": "Quiz Helper",
     "files": [
       "dist/**/*",
@@ -116,7 +116,7 @@
     "technical interview",
     "tool"
   ],
-  "author": "Interview Coder Contributors",
+  "author": "Cheatsheet AI Contributors",
   "license": "AGPL-3.0-or-later",
   "description": "An invisible desktop application to help you pass your technical interviews.",
   "dependencies": {
