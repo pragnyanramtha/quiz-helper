@@ -492,7 +492,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 <div className="text-white/90 font-mono">Ctrl+\ / Alt+2</div>
                 
                 <div className="text-white/70">Type Clipboard Content</div>
-                <div className="text-white/90 font-mono">Alt+3 / Ctrl+Shift+V</div>
+                <div className="text-white/90 font-mono">Ctrl+Shift+V</div>
                 
                 <div className="text-white/70">Copy HTML/Code to Clipboard</div>
                 <div className="text-white/90 font-mono">Ctrl+Shift+C / Cmd+Shift+C</div>

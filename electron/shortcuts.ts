@@ -320,37 +320,7 @@ export class ShortcutsHelper {
       }
     })
 
-    // Alt+3 - Type out clipboard content
-    const alt3Registered = globalShortcut.register("Alt+3", async () => {
-      console.log("Alt+3 pressed. Typing out clipboard content...")
-      try {
-        const clipboardText = clipboard.readText()
 
-        if (!clipboardText) {
-          console.log("Clipboard is empty")
-          return
-        }
-
-        console.log(`Typing ${clipboardText.length} characters from clipboard`)
-
-        // Small delay to allow user to focus the target window
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        // Use nut-js to type the text
-        await keyboard.type(clipboardText)
-        
-        console.log('Successfully typed clipboard content')
-
-      } catch (error) {
-        console.error("Error in Alt+3 handler:", error)
-      }
-    })
-    
-    if (alt3Registered) {
-      console.log("Alt+3 shortcut registered successfully")
-    } else {
-      console.error("Failed to register Alt+3 shortcut - may be in use by another application")
-    }
     
     // Backup: Ctrl+Shift+V as alternative for typing clipboard
     globalShortcut.register("CommandOrControl+Shift+V", async () => {

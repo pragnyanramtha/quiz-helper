@@ -139,7 +139,7 @@ Note: The application is **NOT** invisible to:
 ### Copy & Paste
 - **Ctrl+Shift+C** - Copy HTML/Code to Clipboard
 - **Ctrl+Shift+D** - Copy CSS to Clipboard (extracts from `<style>` tags)
-- **Ctrl+Shift+V** or **Alt+3** - Type Clipboard Content (bypasses paste restrictions)
+- **Ctrl+Shift+V** - Type Clipboard Content (bypasses paste restrictions)
 
 ### Screenshot Management
 - **Ctrl+M** - Take Screenshot (alias for Ctrl+H)
