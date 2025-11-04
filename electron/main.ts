@@ -211,6 +211,35 @@ async function createWindow(): Promise<void> {
   state.step = 60
   state.currentY = 50
 
+  // Try to load custom icon from multiple possible locations
+  let iconPath: string | undefined
+  const possibleIconPaths = [
+    // ICO file (priority for Windows)
+    path.join(__dirname, '..', 'assets', 'icons', 'win', 'icon.ico'),
+    path.join(__dirname, '..', '..', 'assets', 'icons', 'win', 'icon.ico'),
+    path.join(process.resourcesPath, 'assets', 'icons', 'win', 'icon.ico'),
+    path.join(__dirname, '../build/icon.ico'),
+    // PNG fallbacks
+    path.join(__dirname, '../build/icon.png'),
+    path.join(process.resourcesPath, 'build', 'icon.png'),
+    // Modern style icon
+    path.join(__dirname, '..', 'assets', 'icons', 'win', 'modern style icon fo.png'),
+    path.join(__dirname, '..', '..', 'assets', 'icons', 'win', 'modern style icon fo.png'),
+    path.join(process.resourcesPath, 'assets', 'icons', 'win', 'modern style icon fo.png')
+  ]
+  
+  for (const testPath of possibleIconPaths) {
+    if (fs.existsSync(testPath)) {
+      iconPath = testPath
+      console.log('Using icon from:', iconPath)
+      break
+    }
+  }
+  
+  if (!iconPath) {
+    console.log('No custom icon found, using Electron default icon')
+  }
+
   const windowSettings: Electron.BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
@@ -219,6 +248,7 @@ async function createWindow(): Promise<void> {
     x: state.currentX,
     y: 50,
     alwaysOnTop: true,
+    ...(iconPath && { icon: iconPath }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -239,7 +269,7 @@ async function createWindow(): Promise<void> {
     type: "panel",
     paintWhenInitiallyHidden: true,
     titleBarStyle: "hidden",
-    enableLargerThanScreen: true,
+    enableLargerThanScreen: false,
     movable: true
   }
 
@@ -374,9 +404,27 @@ async function createWindow(): Promise<void> {
 function handleWindowMove(): void {
   if (!state.mainWindow) return
   const bounds = state.mainWindow.getBounds()
-  state.windowPosition = { x: bounds.x, y: bounds.y }
-  state.currentX = bounds.x
-  state.currentY = bounds.y
+  
+  // Constrain window position to screen bounds
+  const windowWidth = bounds.width
+  const windowHeight = bounds.height
+  
+  const minX = 0
+  const maxX = state.screenWidth - windowWidth
+  const minY = 0
+  const maxY = state.screenHeight - windowHeight
+  
+  const constrainedX = Math.max(minX, Math.min(maxX, bounds.x))
+  const constrainedY = Math.max(minY, Math.min(maxY, bounds.y))
+  
+  // If position was out of bounds, move it back
+  if (constrainedX !== bounds.x || constrainedY !== bounds.y) {
+    state.mainWindow.setPosition(Math.round(constrainedX), Math.round(constrainedY))
+  }
+  
+  state.windowPosition = { x: constrainedX, y: constrainedY }
+  state.currentX = constrainedX
+  state.currentY = constrainedY
 }
 
 function handleWindowResize(): void {
@@ -436,10 +484,18 @@ function toggleMainWindow(): void {
   }
 }
 
-// Window movement functions
+// Window movement functions with boundary constraints
 function moveWindowHorizontal(updateFn: (x: number) => number): void {
   if (!state.mainWindow) return
-  state.currentX = updateFn(state.currentX)
+  
+  const newX = updateFn(state.currentX)
+  const windowWidth = state.windowSize?.width || 0
+  
+  // Constrain window to stay within screen bounds
+  const minX = 0
+  const maxX = state.screenWidth - windowWidth
+  
+  state.currentX = Math.max(minX, Math.min(maxX, newX))
   state.mainWindow.setPosition(
     Math.round(state.currentX),
     Math.round(state.currentY)
@@ -450,29 +506,28 @@ function moveWindowVertical(updateFn: (y: number) => number): void {
   if (!state.mainWindow) return
 
   const newY = updateFn(state.currentY)
-  // Allow window to go 2/3 off screen in either direction
-  const maxUpLimit = (-(state.windowSize?.height || 0) * 2) / 3
-  const maxDownLimit =
-    state.screenHeight + ((state.windowSize?.height || 0) * 2) / 3
+  const windowHeight = state.windowSize?.height || 0
+  
+  // Constrain window to stay within screen bounds
+  const minY = 0
+  const maxY = state.screenHeight - windowHeight
 
   // Log the current state and limits
   console.log({
     newY,
-    maxUpLimit,
-    maxDownLimit,
+    minY,
+    maxY,
     screenHeight: state.screenHeight,
     windowHeight: state.windowSize?.height,
     currentY: state.currentY
   })
 
-  // Only update if within bounds
-  if (newY >= maxUpLimit && newY <= maxDownLimit) {
-    state.currentY = newY
-    state.mainWindow.setPosition(
-      Math.round(state.currentX),
-      Math.round(state.currentY)
-    )
-  }
+  // Constrain to screen bounds
+  state.currentY = Math.max(minY, Math.min(maxY, newY))
+  state.mainWindow.setPosition(
+    Math.round(state.currentX),
+    Math.round(state.currentY)
+  )
 }
 
 // Window dimension functions

@@ -1,6 +1,6 @@
 {
   "name": "cheatsheet-ai",
-  "version": "1.2.8",
+  "version": "1.0.2",
   "main": "./dist-electron/main.js",
   "scripts": {
     "clean": "npx rimraf dist dist-electron",
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.pragnyanramtha.cheatsheet-ai",
-    "productName": "Quiz Helper",
+    "productName": " CheatSheet AI",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -116,7 +116,7 @@
     "technical interview",
     "tool"
   ],
-  "author": "Cheatsheet AI Contributors",
+  "author": "pragnyanramtha",
   "license": "AGPL-3.0-or-later",
   "description": "An invisible desktop application to help you pass your technical interviews.",
   "dependencies": {
@@ -132,6 +132,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.64.0",
     "axios": "^1.7.7",
+    "caniuse-lite": "^1.0.30001753",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "diff": "^7.0.0",
@@ -173,7 +174,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^29.1.4",
+    "electron": "^29.4.6",
     "electron-builder": "^24.13.3",
     "electron-is-dev": "^3.0.1",
     "eslint": "^8.57.1",

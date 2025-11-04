@@ -1,10 +1,12 @@
 import { globalShortcut, app, clipboard } from "electron"
 import { IShortcutsHelperDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
-import { keyboard, Key } from "@nut-tree-fork/nut-js"
+import { keyboard } from "@nut-tree-fork/nut-js"
 
 export class ShortcutsHelper {
   private deps: IShortcutsHelperDeps
+  private isTyping: boolean = false
+  private shouldStopTyping: boolean = false
 
   constructor(deps: IShortcutsHelperDeps) {
     this.deps = deps
@@ -321,10 +323,16 @@ export class ShortcutsHelper {
     })
 
 
-    
-    // Backup: Ctrl+Shift+V as alternative for typing clipboard
+
+    // Ctrl+Shift+V: Type clipboard content with faster speed
     globalShortcut.register("CommandOrControl+Shift+V", async () => {
       console.log("Ctrl+Shift+V pressed. Typing out clipboard content...")
+
+      if (this.isTyping) {
+        console.log("Already typing, ignoring request")
+        return
+      }
+
       try {
         const clipboardText = clipboard.readText()
 
@@ -334,17 +342,46 @@ export class ShortcutsHelper {
         }
 
         console.log(`Typing ${clipboardText.length} characters from clipboard`)
+        this.isTyping = true
+        this.shouldStopTyping = false
 
         // Small delay to allow user to focus the target window
         await new Promise(resolve => setTimeout(resolve, 500))
 
-        // Use nut-js to type the text
-        await keyboard.type(clipboardText)
-        
-        console.log('Successfully typed clipboard content')
+        // Configure keyboard for slightly faster typing (reduce delay between keystrokes)
+        keyboard.config.autoDelayMs = 75 // Slightly faster than default (default is 100ms)
+
+        // Type character by character to allow interruption
+        for (let i = 0; i < clipboardText.length; i++) {
+          if (this.shouldStopTyping) {
+            console.log(`Typing stopped at character ${i + 1}/${clipboardText.length}`)
+            break
+          }
+          await keyboard.type(clipboardText[i])
+        }
+
+        if (!this.shouldStopTyping) {
+          console.log('Successfully typed clipboard content')
+        }
 
       } catch (error) {
         console.error("Error in Ctrl+Shift+V handler:", error)
+      } finally {
+        this.isTyping = false
+        this.shouldStopTyping = false
+        // Reset to default speed
+        keyboard.config.autoDelayMs = 100
+      }
+    })
+
+    // Ctrl+Shift+X: Stop typing
+    globalShortcut.register("CommandOrControl+Shift+X", () => {
+      console.log("Ctrl+Shift+X pressed. Stopping typing...")
+      if (this.isTyping) {
+        this.shouldStopTyping = true
+        console.log("Typing will stop after current character")
+      } else {
+        console.log("No typing in progress")
       }
     })
 

@@ -329,8 +329,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onOpenSettings }) 
                         <kbd className="px-3 py-1 bg-pink-500/20 text-pink-400 rounded border border-pink-500/30 text-sm font-mono">Ctrl+Shift+D</kbd>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-black/30 rounded-lg">
-                        <span className="text-white/80 text-sm">Type Clipboard</span>
+                        <span className="text-white/80 text-sm">Type Clipboard (Fast)</span>
                         <kbd className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 text-sm font-mono">Ctrl+Shift+V</kbd>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-black/30 rounded-lg">
+                        <span className="text-white/80 text-sm">Stop Typing</span>
+                        <kbd className="px-3 py-1 bg-red-500/20 text-red-400 rounded border border-red-500/30 text-sm font-mono">Ctrl+Shift+X</kbd>
                       </div>
                     </div>
                   </div>

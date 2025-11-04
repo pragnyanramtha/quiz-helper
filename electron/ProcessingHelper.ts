@@ -788,12 +788,19 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
   private parseMCQ(response: string): any {
     // Try to find "FINAL ANSWER:" first (new format)
-    // Support: "option 4) text", "option c) text", "option 4/A) text", etc.
-    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*option\s+([a-z0-9]+)(?:\/([a-z]))?\)\s*(.+?)$/im)
+    // Support multiple formats:
+    // - "FINAL ANSWER: option 4) text"
+    // - "FINAL ANSWER: option 4"
+    // - "FINAL ANSWER: option c"
+    // - "FINAL ANSWER: 4"
+    // - "option 4) text"
+    // - "option 4"
     
-    // Fallback to finding any "option X)" pattern if FINAL ANSWER not found
+    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*(?:option\s+)?([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
+    
+    // Fallback to finding any "option X" pattern if FINAL ANSWER not found
     if (!finalAnswerMatch) {
-      finalAnswerMatch = response.match(/option\s+([a-z0-9]+)(?:\/([a-z]))?\)\s*(.+?)$/im)
+      finalAnswerMatch = response.match(/option\s+([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
     }
     
     const reasoningMatch = response.match(/```markdown\s*([\s\S]*?)```/)
@@ -802,12 +809,12 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     if (finalAnswerMatch) {
       const optionNum = finalAnswerMatch[1]
       const optionLetter = finalAnswerMatch[2] // May be undefined
-      const optionText = finalAnswerMatch[3].trim()
+      const optionText = finalAnswerMatch[3] ? finalAnswerMatch[3].trim() : ""
       
       if (optionLetter) {
-        answer = `option ${optionNum}/${optionLetter}) ${optionText}`
+        answer = `option ${optionNum}/${optionLetter}${optionText ? `) ${optionText}` : ""}`
       } else {
-        answer = `option ${optionNum}) ${optionText}`
+        answer = `option ${optionNum}${optionText ? `) ${optionText}` : ""}`
       }
     }
     
