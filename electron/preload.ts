@@ -194,6 +194,13 @@ const electronAPI = {
     }
   },
   decrementCredits: () => ipcRenderer.invoke("decrement-credits"),
+  onModeChanged: (callback: (data: { mode: string; icon: string; description: string }) => void) => {
+    const subscription = (_event: any, data: { mode: string; icon: string; description: string }) => callback(data)
+    ipcRenderer.on("mode-changed", subscription)
+    return () => {
+      ipcRenderer.removeListener("mode-changed", subscription)
+    }
+  },
   onCreditsUpdated: (callback: (credits: number) => void) => {
     const subscription = (_event: any, credits: number) => callback(credits)
     ipcRenderer.on("credits-updated", subscription)

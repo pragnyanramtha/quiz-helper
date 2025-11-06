@@ -292,6 +292,32 @@ export class ShortcutsHelper {
     // Alt+2 alias for cycling models
     globalShortcut.register("Alt+2", cycleModels)
 
+    // Ctrl+/ to toggle between image and text mode
+    globalShortcut.register("CommandOrControl+/", () => {
+      console.log("Ctrl+/ pressed. Toggling processing mode...")
+      try {
+        const newMode = configHelper.toggleMode()
+        const modeIcon = newMode === "text" ? "⚡" : "🖼️"
+        const modeDescription = newMode === "text" 
+          ? "Ultra-fast (5-10x faster for MCQs!)" 
+          : "Full analysis (best for complex questions)"
+        
+        console.log(`${modeIcon} Switched to ${newMode.toUpperCase()} MODE - ${modeDescription}`)
+
+        // Notify the renderer process about the mode change
+        const mainWindow = this.deps.getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("mode-changed", { 
+            mode: newMode,
+            icon: modeIcon,
+            description: modeDescription
+          })
+        }
+      } catch (error) {
+        console.error("Error toggling mode:", error)
+      }
+    })
+
     // Copy HTML to clipboard shortcut (for web dev questions)
     globalShortcut.register("CommandOrControl+Shift+C", () => {
       console.log("Command/Ctrl + Shift + C pressed. Copying HTML to clipboard.")

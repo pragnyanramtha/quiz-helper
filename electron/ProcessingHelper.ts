@@ -3,11 +3,12 @@ import fs from "node:fs"
 import path from "node:path"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
-import * as axios from "axios"
+import axios from "axios"
 import { BrowserWindow } from "electron"
 import { OpenAI } from "openai"
 import { configHelper } from "./ConfigHelper"
 import Anthropic from '@anthropic-ai/sdk';
+import { ocrHelper } from "./OCRHelper";
 
 // Gemini API interfaces
 interface GeminiMessage {
@@ -134,6 +135,16 @@ export class ProcessingHelper {
       this.conversationHistory = []
       this.lastResponse = ""
 
+      // Check processing mode
+      const mode = configHelper.getMode()
+      console.log(`Processing mode: ${mode}`)
+
+      if (mode === "text") {
+        // Fast text mode - use OCR
+        return await this.processTextMode(screenshots, mainWindow)
+      }
+
+      // Image mode - original processing
       if (mainWindow) {
         // Send INITIAL_START event to switch UI to solutions view
         console.log("Sending INITIAL_START event to switch to solutions view")
@@ -181,7 +192,9 @@ Around 5 lines
 Explain why this is correct
 \`\`\`
 
-FINAL ANSWER: option {number}/{letter}) {option text}
+FINAL ANSWER: {A/B/C/D} {option value}
+
+Example: "FINAL ANSWER: B True" or "FINAL ANSWER: C 4:3"
 
 IMPORTANT: Always include the "FINAL ANSWER:" line at the END so users can quickly see the answer without reading the reasoning first.
 
@@ -376,6 +389,122 @@ IMPORTANT REMINDERS:
       }
 
       return { success: false, error: error.message || "Processing failed" }
+    }
+  }
+
+  private async processTextMode(screenshots: string[], mainWindow: BrowserWindow | null) {
+    console.log("⚡ FAST TEXT MODE - Starting OCR extraction...")
+    const startTime = Date.now()
+
+    try {
+      if (mainWindow) {
+        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
+        mainWindow.webContents.send("processing-status", {
+          message: "Extracting text...",
+          progress: 20
+        })
+      }
+
+      // Extract text from screenshots using OCR
+      const extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
+      console.log(`✓ OCR completed in ${Date.now() - startTime}ms`)
+      console.log(`Extracted text length: ${extractedText.length} characters`)
+
+      if (!extractedText || extractedText.length < 10) {
+        throw new Error("Could not extract sufficient text from screenshots")
+      }
+
+      if (mainWindow) {
+        mainWindow.webContents.send("processing-status", {
+          message: "Getting answer...",
+          progress: 50
+        })
+      }
+
+      // Create abort controller
+      this.currentAbortController = new AbortController()
+      const signal = this.currentAbortController.signal
+
+      const config = configHelper.loadConfig()
+
+      // Clean extracted text - remove special characters that might break API
+      const cleanedText = extractedText
+        .replace(/[^\x20-\x7E\n]/g, ' ') // Remove non-ASCII characters
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/[<>{}[\]]/g, '') // Remove brackets that might break JSON
+        .trim()
+
+      console.log(`Cleaned text: ${cleanedText.substring(0, 200)}...`)
+
+      // Extract just the question and options - ignore noise
+      const questionMatch = cleanedText.match(/(.+?\?)\s*([\s\S]+)/)
+      const relevantText = questionMatch ? `${questionMatch[1]}\n${questionMatch[2]}` : cleanedText
+
+      // ULTRA-FAST PROMPT - No reasoning, just answer
+      const fastPrompt = `Answer this multiple choice question, Ignore text that's realted to the question, Respond with ONLY: FINAL ANSWER: {A/B/C/D}) {value}
+
+Example: "FINAL ANSWER: B) True" or "FINAL ANSWER: C) 4:3"
+
+${relevantText.substring(0, 500)}`
+
+      let responseText = ""
+
+      // Call API - single fast call
+      if (config.apiProvider === "openai") {
+        responseText = await this.callOpenAIFast(fastPrompt, signal)
+      } else if (config.apiProvider === "gemini") {
+        responseText = await this.callGeminiFast(fastPrompt, signal)
+      } else if (config.apiProvider === "anthropic") {
+        responseText = await this.callAnthropicFast(fastPrompt, signal)
+      }
+
+      const totalTime = Date.now() - startTime
+      console.log(`⚡ TOTAL TEXT MODE TIME: ${totalTime}ms`)
+
+      // Parse response
+      const parsedResponse = this.parseMCQ(responseText)
+
+      if (mainWindow) {
+        mainWindow.webContents.send("processing-status", {
+          message: "Complete!",
+          progress: 100
+        })
+
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
+          parsedResponse
+        )
+      }
+
+      // Clear the main queue
+      this.screenshotHelper.clearMainScreenshotQueue()
+      this.deps.setView("solutions")
+      
+      return { success: true, data: parsedResponse }
+
+    } catch (error: any) {
+      console.error("Text mode processing error:", error)
+      
+      // Log detailed error information
+      if (error.response) {
+        console.error("API Error Response:", {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers
+        })
+      }
+      
+      if (mainWindow) {
+        mainWindow.webContents.send("processing-status", {
+          message: "Text mode failed, try image mode",
+          progress: 0,
+          error: true
+        })
+        mainWindow.webContents.send("reset-view")
+      }
+
+      return { success: false, error: error.message || "Text mode processing failed" }
     }
   }
 
@@ -626,16 +755,24 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
       ]
     }]
 
-    const response = await axios.default.post(
+    const payload = {
+      contents: messages,
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 32000
+      }
+    }
+
+    const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
-      {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 32000
-        }
-      },
-      { signal }
+      payload,
+      { 
+        signal,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        transformRequest: [(data) => JSON.stringify(data)]
+      }
     )
 
     const data = response.data as GeminiResponse
@@ -676,20 +813,114 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
       ]
     })
 
-    const response = await axios.default.post(
+    const payload = {
+      contents: messages,
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 32000
+      }
+    }
+
+    const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
-      {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 32000
-        }
-      },
-      { signal }
+      payload,
+      { 
+        signal,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        transformRequest: [(data) => JSON.stringify(data)]
+      }
     )
 
     const data = response.data as GeminiResponse
     return data.candidates[0].content.parts[0].text
+  }
+
+  // FAST API CALLS FOR TEXT MODE (No images, minimal tokens)
+  private async callOpenAIFast(prompt: string, signal: AbortSignal): Promise<string> {
+    if (!this.openaiClient) throw new Error("OpenAI not initialized")
+
+    const config = configHelper.loadConfig()
+    const response = await this.openaiClient.chat.completions.create({
+      model: config.solutionModel || "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 100, // Minimal tokens for fast response
+      temperature: 0.1 // Low temperature for accuracy
+    }, { signal })
+
+    return response.choices[0].message.content || ""
+  }
+
+  private async callGeminiFast(prompt: string, signal: AbortSignal): Promise<string> {
+    if (!this.geminiApiKey) throw new Error("Gemini not initialized")
+
+    const config = configHelper.loadConfig()
+    
+    // Use a simpler, more reliable model for fast text mode
+    const model = "gemini-2.5-flash-lite"
+    
+    const payload = {
+      contents: [{
+        role: "user",
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 50,
+        candidateCount: 1
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_NONE"
+        }
+      ]
+    }
+
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.geminiApiKey}`,
+      payload,
+      { 
+        signal,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        transformRequest: [(data) => JSON.stringify(data)]
+      }
+    )
+
+    const data = response.data as GeminiResponse
+    return data.candidates[0].content.parts[0].text
+  }
+
+  private async callAnthropicFast(prompt: string, signal: AbortSignal): Promise<string> {
+    if (!this.anthropicClient) throw new Error("Anthropic not initialized")
+
+    const config = configHelper.loadConfig()
+    const response = await this.anthropicClient.messages.create({
+      model: config.solutionModel || "claude-3-5-haiku-20241022",
+      max_tokens: 100,
+      messages: [{
+        role: "user",
+        content: [{ type: "text", text: prompt }]
+      }],
+      temperature: 0.1
+    })
+
+    return (response.content[0] as { type: 'text', text: string }).text
   }
 
   private async callAnthropic(systemPrompt: string, images: string[], signal: AbortSignal): Promise<string> {
@@ -789,16 +1020,21 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
   private parseMCQ(response: string): any {
     // Try to find "FINAL ANSWER:" first (new format)
     // Support multiple formats:
-    // - "FINAL ANSWER: option 4) text"
-    // - "FINAL ANSWER: option 4"
-    // - "FINAL ANSWER: option c"
-    // - "FINAL ANSWER: 4"
-    // - "option 4) text"
-    // - "option 4"
+    // - "FINAL ANSWER: A True"
+    // - "FINAL ANSWER: B 4:3"
+    // - "FINAL ANSWER: C Some text"
+    // - "FINAL ANSWER: option 4) text" (legacy)
+    // - "FINAL ANSWER: option 4" (legacy)
     
-    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*(?:option\s+)?([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
+    // New format: FINAL ANSWER: {A/B/C/D} {value}
+    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D])\s+(.+?)$/im)
     
-    // Fallback to finding any "option X" pattern if FINAL ANSWER not found
+    // Legacy format: FINAL ANSWER: option X
+    if (!finalAnswerMatch) {
+      finalAnswerMatch = response.match(/FINAL ANSWER:\s*(?:option\s+)?([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
+    }
+    
+    // Fallback to finding any "option X" pattern
     if (!finalAnswerMatch) {
       finalAnswerMatch = response.match(/option\s+([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
     }
@@ -807,17 +1043,27 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     
     let answer = "Answer not found"
     if (finalAnswerMatch) {
-      const optionNum = finalAnswerMatch[1]
-      const optionLetter = finalAnswerMatch[2] // May be undefined
-      const optionText = finalAnswerMatch[3] ? finalAnswerMatch[3].trim() : ""
+      const firstCapture = finalAnswerMatch[1]
+      const secondCapture = finalAnswerMatch[2]
+      const thirdCapture = finalAnswerMatch[3]
       
-      if (optionLetter) {
-        answer = `option ${optionNum}/${optionLetter}${optionText ? `) ${optionText}` : ""}`
+      // Check if it's new format (single letter A-D)
+      if (firstCapture.match(/^[A-D]$/i) && secondCapture) {
+        // New format: "A True" or "B 4:3"
+        answer = `${firstCapture.toUpperCase()} ${secondCapture.trim()}`
       } else {
-        answer = `option ${optionNum}${optionText ? `) ${optionText}` : ""}`
+        // Legacy format
+        const optionNum = firstCapture
+        const optionLetter = secondCapture
+        const optionText = thirdCapture ? thirdCapture.trim() : ""
+        
+        if (optionLetter) {
+          answer = `option ${optionNum}/${optionLetter}${optionText ? `) ${optionText}` : ""}`
+        } else {
+          answer = `option ${optionNum}${optionText ? `) ${optionText}` : ""}`
+        }
       }
-    }
-    
+    }  
     const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided"
     
     // Format the response with highlighted final answer at the end

@@ -13,6 +13,7 @@ interface Config {
   debuggingModel: string;
   language: string;
   opacity: number;
+  mode: "image" | "text";  // Processing mode
 }
 
 export class ConfigHelper extends EventEmitter {
@@ -24,7 +25,8 @@ export class ConfigHelper extends EventEmitter {
     solutionModel: "gpt-5",
     debuggingModel: "gpt-5",
     language: "python",
-    opacity: 1.0
+    opacity: 1.0,
+    mode: "image" // Default to image mode
   };
 
   constructor() {
@@ -283,6 +285,32 @@ export class ConfigHelper extends EventEmitter {
    */
   public setLanguage(language: string): void {
     this.updateConfig({ language });
+  }
+  
+  /**
+   * Get the processing mode (image or text)
+   */
+  public getMode(): "image" | "text" {
+    const config = this.loadConfig();
+    return config.mode || "image";
+  }
+
+  /**
+   * Set the processing mode
+   */
+  public setMode(mode: "image" | "text"): void {
+    this.updateConfig({ mode });
+    console.log(`Processing mode set to: ${mode}`);
+  }
+  
+  /**
+   * Toggle between image and text mode
+   */
+  public toggleMode(): "image" | "text" {
+    const currentMode = this.getMode();
+    const newMode = currentMode === "image" ? "text" : "image";
+    this.setMode(newMode);
+    return newMode;
   }
   
   /**

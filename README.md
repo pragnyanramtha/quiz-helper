@@ -135,6 +135,7 @@ Note: The application is **NOT** invisible to:
 
 ### AI & Models
 - **Ctrl+\\** or **Alt+2** - Cycle Through Models (GPT-5 → GPT-5-mini → Gemini Pro → Gemini Flash → etc.)
+- **Ctrl+/** - Toggle Processing Mode (Image Mode ↔ Text Mode - Text mode is 5-10x faster for MCQs!)
 
 ### Copy & Paste
 - **Ctrl+Shift+C** - Copy HTML/Code to Clipboard
