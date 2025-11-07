@@ -238,47 +238,42 @@ export class ShortcutsHelper {
       }
     })
 
-    // Model cycling function
+    // Model cycling function - cycles models based on current mode
     const cycleModels = () => {
-      console.log("Cycling through models in the same family.")
+      console.log("Cycling through models based on current mode.")
       try {
         const config = configHelper.loadConfig()
-        const provider = config.apiProvider
+        const mode = config.mode
 
-        let newModel = ""
+        if (mode === "mcq") {
+          // Cycle through Groq models
+          const groqModels = ["llama-3.3-70b-versatile", "meta-llama/llama-4-maverick-17b-128e-instruct", "openai/gpt-oss-120b"]
+          const currentIndex = groqModels.indexOf(config.groqModel)
+          const nextIndex = (currentIndex + 1) % groqModels.length
+          const newModel = groqModels[nextIndex]
+          
+          configHelper.updateConfig({ groqModel: newModel })
+          console.log(`Switched Groq model to: ${newModel}`)
 
-        if (provider === "gemini") {
-          // Cycle through Gemini models: pro -> flash -> lite -> pro
-          const geminiModels = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-          const currentIndex = geminiModels.indexOf(config.solutionModel)
-          const nextIndex = (currentIndex + 1) % geminiModels.length
-          newModel = geminiModels[nextIndex]
-        } else if (provider === "openai") {
-          // Cycle through OpenAI models: gpt-5 -> gpt-5-mini -> gpt-5
-          const openaiModels = ["gpt-5", "gpt-5-mini"]
-          const currentIndex = openaiModels.indexOf(config.solutionModel)
-          const nextIndex = (currentIndex + 1) % openaiModels.length
-          newModel = openaiModels[nextIndex]
-        } else if (provider === "anthropic") {
-          // Cycle through Claude models
-          const claudeModels = ["claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-haiku-20241022"]
-          const currentIndex = claudeModels.indexOf(config.solutionModel)
-          const nextIndex = (currentIndex + 1) % claudeModels.length
-          newModel = claudeModels[nextIndex]
-        }
-
-        if (newModel) {
-          configHelper.updateConfig({
-            extractionModel: newModel,
-            solutionModel: newModel,
-            debuggingModel: newModel
-          })
-          console.log(`Switched to model: ${newModel}`)
-
-          // Notify the renderer process about the model change
+          // Notify the renderer process
           const mainWindow = this.deps.getMainWindow()
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("model-changed", { model: newModel, provider })
+            mainWindow.webContents.send("model-changed", { model: newModel, mode: "mcq" })
+          }
+        } else {
+          // Cycle through Gemini models
+          const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
+          const currentIndex = geminiModels.indexOf(config.geminiModel)
+          const nextIndex = (currentIndex + 1) % geminiModels.length
+          const newModel = geminiModels[nextIndex]
+          
+          configHelper.updateConfig({ geminiModel: newModel })
+          console.log(`Switched Gemini model to: ${newModel}`)
+
+          // Notify the renderer process
+          const mainWindow = this.deps.getMainWindow()
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("model-changed", { model: newModel, mode: "general" })
           }
         }
       } catch (error) {
@@ -292,15 +287,15 @@ export class ShortcutsHelper {
     // Alt+2 alias for cycling models
     globalShortcut.register("Alt+2", cycleModels)
 
-    // Ctrl+/ to toggle between image and text mode
+    // Ctrl+/ to toggle between MCQ and General mode
     globalShortcut.register("CommandOrControl+/", () => {
       console.log("Ctrl+/ pressed. Toggling processing mode...")
       try {
         const newMode = configHelper.toggleMode()
-        const modeIcon = newMode === "text" ? "⚡" : "🖼️"
-        const modeDescription = newMode === "text" 
-          ? "Ultra-fast (5-10x faster for MCQs!)" 
-          : "Full analysis (best for complex questions)"
+        const modeIcon = newMode === "mcq" ? "⚡" : "🎯"
+        const modeDescription = newMode === "mcq" 
+          ? "MCQ Mode - Ultra-fast with Groq" 
+          : "General Mode - All questions with Gemini"
         
         console.log(`${modeIcon} Switched to ${newMode.toUpperCase()} MODE - ${modeDescription}`)
 

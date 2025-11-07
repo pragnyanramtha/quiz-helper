@@ -21,18 +21,34 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     return configHelper.hasApiKey();
   })
   
-  ipcMain.handle("validate-api-key", async (_event, apiKey) => {
-    // First check the format
-    if (!configHelper.isValidApiKeyFormat(apiKey)) {
+  ipcMain.handle("validate-api-key", async (_event, apiKey, provider?: "groq" | "gemini") => {
+    // Basic format validation
+    if (!apiKey || apiKey.trim().length < 10) {
       return { 
         valid: false, 
-        error: "Invalid API key format. OpenAI API keys start with 'sk-'" 
+        error: "Invalid API key format. API key is too short." 
       };
     }
     
-    // Then test the API key with OpenAI
-    const result = await configHelper.testApiKey(apiKey);
-    return result;
+    // Format validation based on provider
+    if (provider === "groq") {
+      if (!configHelper.isValidGroqApiKey(apiKey)) {
+        return { 
+          valid: false, 
+          error: "Invalid Groq API key format. Groq keys start with 'gsk_'" 
+        };
+      }
+    } else if (provider === "gemini") {
+      if (!configHelper.isValidGeminiApiKey(apiKey)) {
+        return { 
+          valid: false, 
+          error: "Invalid Gemini API key format." 
+        };
+      }
+    }
+    
+    // Return valid if format is correct (we don't test the key with API anymore)
+    return { valid: true };
   })
 
   // Credits handlers

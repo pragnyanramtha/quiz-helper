@@ -1,6 +1,6 @@
 // Solutions.tsx
 import React, { useState, useEffect, useRef } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -126,7 +126,6 @@ const Solutions: React.FC<SolutionsProps> = ({
   const [solutionData, setSolutionData] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
   const [htmlData, setHtmlData] = useState<string | null>(null)
-  const [cssData, setCssData] = useState<string | null>(null)
   const [questionType, setQuestionType] = useState<string | null>(null)
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null)
 
@@ -236,7 +235,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         setSolutionData(null)
         setThoughtsData(null)
       }),
-      window.electronAPI.onProblemExtracted((data) => {
+      window.electronAPI.onProblemExtracted((data: ProblemStatementData) => {
         queryClient.setQueryData(["problem_statement"], data)
       }),
       //if there was an error processing the initial solution
@@ -255,7 +254,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         console.error("Processing error:", error)
       }),
       //when the initial solution is generated, we'll set the solution data to that
-      window.electronAPI.onSolutionSuccess((data) => {
+      window.electronAPI.onSolutionSuccess((data: any) => {
         if (!data) {
           console.warn("Received empty or invalid solution data")
           return
@@ -274,7 +273,6 @@ const Solutions: React.FC<SolutionsProps> = ({
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
         setHtmlData(solutionData.html || null)
-        setCssData(solutionData.css || null)
         setQuestionType(solutionData.question_type || null)
         setFinalAnswer(solutionData.final_answer_highlight || null)
 
@@ -283,7 +281,7 @@ const Solutions: React.FC<SolutionsProps> = ({
           try {
             const existing = await window.electronAPI.getScreenshots()
             const screenshots =
-              existing.previews?.map((p) => ({
+              existing.previews?.map((p: any) => ({
                 id: p.path,
                 path: p.path,
                 preview: p.preview,
@@ -306,7 +304,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         setDebugProcessing(true)
       }),
       //the first time debugging works, we'll set the view to debug and populate the cache with the data
-      window.electronAPI.onDebugSuccess((data) => {
+      window.electronAPI.onDebugSuccess((data: any) => {
         queryClient.setQueryData(["new_solution"], data)
         setDebugProcessing(false)
       }),
@@ -367,21 +365,13 @@ const Solutions: React.FC<SolutionsProps> = ({
       
       if (dataToCopy) {
         try {
-          const textarea = document.createElement('textarea')
-          textarea.value = dataToCopy
-          textarea.style.position = 'fixed'
-          textarea.style.opacity = '0'
-          document.body.appendChild(textarea)
-          textarea.select()
-          const success = document.execCommand('copy')
-          document.body.removeChild(textarea)
-          
-          if (success) {
+          navigator.clipboard.writeText(dataToCopy).then(() => {
             const message = questionType === "web_dev" ? "HTML copied to clipboard" : "Code copied to clipboard"
             showToast("Copied!", message, "success")
-          } else {
+          }).catch((err) => {
+            console.error("Failed to copy:", err)
             showToast("Error", "Failed to copy to clipboard", "error")
-          }
+          })
         } catch (err) {
           console.error("Failed to copy:", err)
           showToast("Error", "Failed to copy to clipboard", "error")
@@ -413,20 +403,12 @@ const Solutions: React.FC<SolutionsProps> = ({
           if (matches.length > 0) {
             const cssContent = matches.join('\n\n')
             
-            const textarea = document.createElement('textarea')
-            textarea.value = cssContent
-            textarea.style.position = 'fixed'
-            textarea.style.opacity = '0'
-            document.body.appendChild(textarea)
-            textarea.select()
-            const success = document.execCommand('copy')
-            document.body.removeChild(textarea)
-            
-            if (success) {
+            navigator.clipboard.writeText(cssContent).then(() => {
               showToast("Copied!", "CSS copied to clipboard", "success")
-            } else {
+            }).catch((err) => {
+              console.error("Failed to copy CSS:", err)
               showToast("Error", "Failed to copy CSS to clipboard", "error")
-            }
+            })
           } else {
             showToast("No CSS", "No <style> tags found in the solution", "neutral")
           }

@@ -405,14 +405,18 @@ function handleWindowMove(): void {
   if (!state.mainWindow) return
   const bounds = state.mainWindow.getBounds()
   
-  // Constrain window position to screen bounds
+  // Constrain window position with 20% overflow allowance for better scrolling
   const windowWidth = bounds.width
   const windowHeight = bounds.height
   
-  const minX = 0
-  const maxX = state.screenWidth - windowWidth
-  const minY = 0
-  const maxY = state.screenHeight - windowHeight
+  // Allow 20% of window to go off-screen in each direction
+  const overflowX = Math.floor(windowWidth * 0.2)
+  const overflowY = Math.floor(windowHeight * 0.2)
+  
+  const minX = -overflowX
+  const maxX = state.screenWidth - windowWidth + overflowX
+  const minY = -overflowY
+  const maxY = state.screenHeight - windowHeight + overflowY
   
   const constrainedX = Math.max(minX, Math.min(maxX, bounds.x))
   const constrainedY = Math.max(minY, Math.min(maxY, bounds.y))
@@ -491,9 +495,10 @@ function moveWindowHorizontal(updateFn: (x: number) => number): void {
   const newX = updateFn(state.currentX)
   const windowWidth = state.windowSize?.width || 0
   
-  // Constrain window to stay within screen bounds
-  const minX = 0
-  const maxX = state.screenWidth - windowWidth
+  // Allow 20% overflow for better scrolling
+  const overflowX = Math.floor(windowWidth * 0.2)
+  const minX = -overflowX
+  const maxX = state.screenWidth - windowWidth + overflowX
   
   state.currentX = Math.max(minX, Math.min(maxX, newX))
   state.mainWindow.setPosition(
@@ -508,9 +513,10 @@ function moveWindowVertical(updateFn: (y: number) => number): void {
   const newY = updateFn(state.currentY)
   const windowHeight = state.windowSize?.height || 0
   
-  // Constrain window to stay within screen bounds
-  const minY = 0
-  const maxY = state.screenHeight - windowHeight
+  // Allow 20% overflow for better scrolling
+  const overflowY = Math.floor(windowHeight * 0.2)
+  const minY = -overflowY
+  const maxY = state.screenHeight - windowHeight + overflowY
 
   // Log the current state and limits
   console.log({
@@ -519,10 +525,11 @@ function moveWindowVertical(updateFn: (y: number) => number): void {
     maxY,
     screenHeight: state.screenHeight,
     windowHeight: state.windowSize?.height,
-    currentY: state.currentY
+    currentY: state.currentY,
+    overflowY
   })
 
-  // Constrain to screen bounds
+  // Constrain to screen bounds with overflow
   state.currentY = Math.max(minY, Math.min(maxY, newY))
   state.mainWindow.setPosition(
     Math.round(state.currentX),

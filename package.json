@@ -1,6 +1,6 @@
 {
   "name": "cheatsheet-ai",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "./dist-electron/main.js",
   "scripts": {
     "clean": "npx rimraf dist dist-electron",
@@ -22,8 +22,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json",
-      "electron/**/*"
+      "package.json"
     ],
     "directories": {
       "output": "release"
@@ -149,6 +148,7 @@
     "react-router-dom": "^6.28.1",
     "react-syntax-highlighter": "^15.6.1",
     "screenshot-desktop": "^1.15.0",
+    "sharp": "^0.34.4",
     "tailwind-merge": "^2.5.5",
     "tesseract.js": "^6.0.1",
     "uuid": "^11.0.3"

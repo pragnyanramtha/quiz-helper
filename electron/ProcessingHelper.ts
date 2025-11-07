@@ -1,14 +1,11 @@
-// ProcessingHelper.ts - SIMPLIFIED VERSION
+// ProcessingHelper.ts - SIMPLIFIED VERSION (MCQ + General Mode)
 import fs from "node:fs"
-import path from "node:path"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
 import axios from "axios"
-import { BrowserWindow } from "electron"
 import { OpenAI } from "openai"
 import { configHelper } from "./ConfigHelper"
-import Anthropic from '@anthropic-ai/sdk';
-import { ocrHelper } from "./OCRHelper";
+import { ocrHelper } from "./OCRHelper"
 
 // Gemini API interfaces
 interface GeminiMessage {
@@ -35,9 +32,8 @@ interface GeminiResponse {
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
-  private openaiClient: OpenAI | null = null
   private geminiApiKey: string | null = null
-  private anthropicClient: Anthropic | null = null
+  private groqClient: OpenAI | null = null
 
   // Conversation history for debugging
   private conversationHistory: Array<{ role: string, content: any }> = []
@@ -49,39 +45,35 @@ export class ProcessingHelper {
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
     this.screenshotHelper = deps.getScreenshotHelper()
-    this.initializeAIClient()
+    this.initializeAIClients()
 
     configHelper.on('config-updated', () => {
-      this.initializeAIClient()
+      this.initializeAIClients()
     })
   }
 
-  private initializeAIClient(): void {
+  private initializeAIClients(): void {
     const config = configHelper.loadConfig()
 
-    if (config.apiProvider === "openai" && config.apiKey) {
-      this.openaiClient = new OpenAI({
-        apiKey: config.apiKey,
+    // Initialize Groq client if API key exists
+    if (config.groqApiKey) {
+      this.groqClient = new OpenAI({
+        apiKey: config.groqApiKey,
+        baseURL: "https://api.groq.com/openai/v1",
         timeout: 120000,
         maxRetries: 2
       })
-      this.geminiApiKey = null
-      this.anthropicClient = null
-      console.log("OpenAI client initialized")
-    } else if (config.apiProvider === "gemini" && config.apiKey) {
-      this.geminiApiKey = config.apiKey
-      this.openaiClient = null
-      this.anthropicClient = null
+      console.log("Groq client initialized")
+    } else {
+      this.groqClient = null
+    }
+
+    // Initialize Gemini API key if exists
+    if (config.geminiApiKey) {
+      this.geminiApiKey = config.geminiApiKey
       console.log("Gemini API key set")
-    } else if (config.apiProvider === "anthropic" && config.apiKey) {
-      this.anthropicClient = new Anthropic({
-        apiKey: config.apiKey,
-        timeout: 120000,
-        maxRetries: 2
-      })
-      this.openaiClient = null
+    } else {
       this.geminiApiKey = null
-      console.log("Anthropic client initialized")
     }
   }
 
@@ -94,7 +86,6 @@ export class ProcessingHelper {
 
   // MAIN PROCESSING - Single API call
   public async processScreenshots() {
-    const mainWindow = this.deps.getMainWindow()
     const view = this.deps.getView()
     const mainQueue = this.deps.getScreenshotQueue()
     const extraQueue = this.deps.getExtraScreenshotQueue()
@@ -135,16 +126,12 @@ export class ProcessingHelper {
       this.conversationHistory = []
       this.lastResponse = ""
 
-      // Check processing mode
-      const mode = configHelper.getMode()
-      console.log(`Processing mode: ${mode}`)
+      // Check processing mode (MCQ or General)
+      const config = configHelper.loadConfig()
+      const mode = config.mode
+      console.log(`Processing mode: ${mode} (${mode === "mcq" ? "Groq" : "Gemini"})`)
 
-      if (mode === "text") {
-        // Fast text mode - use OCR
-        return await this.processTextMode(screenshots, mainWindow)
-      }
-
-      // Image mode - original processing
+      // Both modes use image processing
       if (mainWindow) {
         // Send INITIAL_START event to switch UI to solutions view
         console.log("Sending INITIAL_START event to switch to solutions view")
@@ -168,35 +155,28 @@ export class ProcessingHelper {
       this.currentAbortController = new AbortController()
       const signal = this.currentAbortController.signal
 
-      const config = configHelper.loadConfig()
       const language = await this.getLanguage()
 
-      // SIMPLIFIED PROMPT - Single call
-      const systemPrompt = `You are an expert in Math, Python, Web Development, and English. Analyze the screenshots CAREFULLY and respond based on the question type you detect.
-
-CRITICAL: Read ALL text in the screenshots including:
-- Main question/problem statement
-- Helping instructions or hints
-- Test cases or requirements (especially for web development)
-- Example inputs/outputs
-- Any constraints or specifications
+      // OPTIMIZED PROMPT - Efficient and accurate
+      const systemPrompt = `You are an expert problem solver. Analyze carefully and provide complete, accurate answers.
 
 RESPONSE FORMATS:
 
 1. MULTIPLE CHOICE QUESTION (MCQ):
+CRITICAL: Calculate/solve the problem yourself and give the CORRECT answer.
+- If you calculate a value, use YOUR calculated result (not necessarily the exact option text)
+- OCR errors may cause option values to be slightly wrong - trust your calculation
+- Example: If you calculate 6600 but option C shows "6500", answer "FINAL ANSWER: C 6600"
+
 Format:
-\`\`\`markdown
-Brief reasoning explanation
-Keep it concise
-Around 5 lines
-Explain why this is correct
-\`\`\`
+FINAL ANSWER: {A/B/C/D} {your correct answer}
 
-FINAL ANSWER: {A/B/C/D} {option value}
+Examples: 
+- "FINAL ANSWER: B True"
+- "FINAL ANSWER: C 6600" (your calculation, even if option says 6500)
+- "FINAL ANSWER: A 5050"
 
-Example: "FINAL ANSWER: B True" or "FINAL ANSWER: C 4:3"
-
-IMPORTANT: Always include the "FINAL ANSWER:" line at the END so users can quickly see the answer without reading the reasoning first.
+You may show brief reasoning if helpful (2-3 lines max), but ALWAYS end with "FINAL ANSWER:" line with YOUR correct calculation.
 
 2. PYTHON QUESTION:
 Format:
@@ -264,18 +244,24 @@ IMPORTANT REMINDERS:
         })
       }
 
-      // Call appropriate API with retry logic
+      // Call appropriate API based on mode with retry logic
       const maxRetries = 3
       let lastError: any = null
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          if (config.apiProvider === "openai") {
-            responseText = await this.callOpenAI(systemPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "gemini") {
+          if (mode === "mcq") {
+            // MCQ Mode - Use Groq
+            if (!this.groqClient) {
+              throw new Error("Groq API key not configured. Please add your Groq API key in settings.")
+            }
+            responseText = await this.callGroq(systemPrompt, imageDataList, signal)
+          } else {
+            // General Mode - Use Gemini
+            if (!this.geminiApiKey) {
+              throw new Error("Gemini API key not configured. Please add your Gemini API key in settings.")
+            }
             responseText = await this.callGemini(systemPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "anthropic") {
-            responseText = await this.callAnthropic(systemPrompt, imageDataList, signal)
           }
 
           // Success - break retry loop
@@ -392,122 +378,6 @@ IMPORTANT REMINDERS:
     }
   }
 
-  private async processTextMode(screenshots: string[], mainWindow: BrowserWindow | null) {
-    console.log("⚡ FAST TEXT MODE - Starting OCR extraction...")
-    const startTime = Date.now()
-
-    try {
-      if (mainWindow) {
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
-        mainWindow.webContents.send("processing-status", {
-          message: "Extracting text...",
-          progress: 20
-        })
-      }
-
-      // Extract text from screenshots using OCR
-      const extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
-      console.log(`✓ OCR completed in ${Date.now() - startTime}ms`)
-      console.log(`Extracted text length: ${extractedText.length} characters`)
-
-      if (!extractedText || extractedText.length < 10) {
-        throw new Error("Could not extract sufficient text from screenshots")
-      }
-
-      if (mainWindow) {
-        mainWindow.webContents.send("processing-status", {
-          message: "Getting answer...",
-          progress: 50
-        })
-      }
-
-      // Create abort controller
-      this.currentAbortController = new AbortController()
-      const signal = this.currentAbortController.signal
-
-      const config = configHelper.loadConfig()
-
-      // Clean extracted text - remove special characters that might break API
-      const cleanedText = extractedText
-        .replace(/[^\x20-\x7E\n]/g, ' ') // Remove non-ASCII characters
-        .replace(/\s+/g, ' ') // Normalize whitespace
-        .replace(/[<>{}[\]]/g, '') // Remove brackets that might break JSON
-        .trim()
-
-      console.log(`Cleaned text: ${cleanedText.substring(0, 200)}...`)
-
-      // Extract just the question and options - ignore noise
-      const questionMatch = cleanedText.match(/(.+?\?)\s*([\s\S]+)/)
-      const relevantText = questionMatch ? `${questionMatch[1]}\n${questionMatch[2]}` : cleanedText
-
-      // ULTRA-FAST PROMPT - No reasoning, just answer
-      const fastPrompt = `Answer this multiple choice question, Ignore text that's realted to the question, Respond with ONLY: FINAL ANSWER: {A/B/C/D}) {value}
-
-Example: "FINAL ANSWER: B) True" or "FINAL ANSWER: C) 4:3"
-
-${relevantText.substring(0, 500)}`
-
-      let responseText = ""
-
-      // Call API - single fast call
-      if (config.apiProvider === "openai") {
-        responseText = await this.callOpenAIFast(fastPrompt, signal)
-      } else if (config.apiProvider === "gemini") {
-        responseText = await this.callGeminiFast(fastPrompt, signal)
-      } else if (config.apiProvider === "anthropic") {
-        responseText = await this.callAnthropicFast(fastPrompt, signal)
-      }
-
-      const totalTime = Date.now() - startTime
-      console.log(`⚡ TOTAL TEXT MODE TIME: ${totalTime}ms`)
-
-      // Parse response
-      const parsedResponse = this.parseMCQ(responseText)
-
-      if (mainWindow) {
-        mainWindow.webContents.send("processing-status", {
-          message: "Complete!",
-          progress: 100
-        })
-
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
-          parsedResponse
-        )
-      }
-
-      // Clear the main queue
-      this.screenshotHelper.clearMainScreenshotQueue()
-      this.deps.setView("solutions")
-      
-      return { success: true, data: parsedResponse }
-
-    } catch (error: any) {
-      console.error("Text mode processing error:", error)
-      
-      // Log detailed error information
-      if (error.response) {
-        console.error("API Error Response:", {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          headers: error.response.headers
-        })
-      }
-      
-      if (mainWindow) {
-        mainWindow.webContents.send("processing-status", {
-          message: "Text mode failed, try image mode",
-          progress: 0,
-          error: true
-        })
-        mainWindow.webContents.send("reset-view")
-      }
-
-      return { success: false, error: error.message || "Text mode processing failed" }
-    }
-  }
-
   private async processDebugging() {
     const mainWindow = this.deps.getMainWindow()
 
@@ -562,12 +432,19 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          if (config.apiProvider === "openai") {
-            responseText = await this.callOpenAIWithHistory(debugPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "gemini") {
+          const mode = config.mode
+          if (mode === "mcq") {
+            // MCQ Mode - Use Groq
+            if (!this.groqClient) {
+              throw new Error("Groq API key not configured")
+            }
+            responseText = await this.callGroqWithHistory(debugPrompt, imageDataList, signal)
+          } else {
+            // General Mode - Use Gemini
+            if (!this.geminiApiKey) {
+              throw new Error("Gemini API key not configured")
+            }
             responseText = await this.callGeminiWithHistory(debugPrompt, imageDataList, signal)
-          } else if (config.apiProvider === "anthropic") {
-            responseText = await this.callAnthropicWithHistory(debugPrompt, imageDataList, signal)
           }
 
           // Success - break retry loop
@@ -671,73 +548,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     }
   }
 
-  // API CALLS
-  private async callOpenAI(systemPrompt: string, images: string[], signal: AbortSignal): Promise<string> {
-    if (!this.openaiClient) throw new Error("OpenAI not initialized")
-
-    const config = configHelper.loadConfig()
-    const response = await this.openaiClient.chat.completions.create({
-      model: config.solutionModel || "gpt-5",
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Analyze these screenshots and provide the solution:" },
-            ...images.map(img => ({
-              type: "image_url" as const,
-              image_url: { url: `data:image/png;base64,${img}` }
-            }))
-          ]
-        }
-      ],
-      max_tokens: 32000,
-      temperature: 0.2
-    }, { signal })
-
-    return response.choices[0].message.content || ""
-  }
-
-  private async callOpenAIWithHistory(prompt: string, images: string[], signal: AbortSignal): Promise<string> {
-    if (!this.openaiClient) throw new Error("OpenAI not initialized")
-
-    const config = configHelper.loadConfig()
-
-    // Build messages with history
-    const messages: any[] = [
-      { role: "system", content: "You are an expert debugging assistant." }
-    ]
-
-    // Add conversation history (simplified)
-    if (this.conversationHistory.length > 0) {
-      messages.push({
-        role: "assistant",
-        content: this.lastResponse
-      })
-    }
-
-    // Add current debug request
-    messages.push({
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        ...images.map(img => ({
-          type: "image_url" as const,
-          image_url: { url: `data:image/png;base64,${img}` }
-        }))
-      ]
-    })
-
-    const response = await this.openaiClient.chat.completions.create({
-      model: config.debuggingModel || "gpt-5",
-      messages,
-      max_tokens: 32000,
-      temperature: 0.2
-    }, { signal })
-
-    return response.choices[0].message.content || ""
-  }
-
+  // API CALLS - Gemini and Groq only
   private async callGemini(systemPrompt: string, images: string[], signal: AbortSignal): Promise<string> {
     if (!this.geminiApiKey) throw new Error("Gemini not initialized")
 
@@ -764,7 +575,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     }
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel || "gemini-2.5-flash"}:generateContent?key=${this.geminiApiKey}`,
       payload,
       { 
         signal,
@@ -822,7 +633,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     }
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.5-flash-lite"}:generateContent?key=${this.geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel || "gemini-2.5-flash"}:generateContent?key=${this.geminiApiKey}`,
       payload,
       { 
         signal,
@@ -837,27 +648,11 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     return data.candidates[0].content.parts[0].text
   }
 
-  // FAST API CALLS FOR TEXT MODE (No images, minimal tokens)
-  private async callOpenAIFast(prompt: string, signal: AbortSignal): Promise<string> {
-    if (!this.openaiClient) throw new Error("OpenAI not initialized")
-
-    const config = configHelper.loadConfig()
-    const response = await this.openaiClient.chat.completions.create({
-      model: config.solutionModel || "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 100, // Minimal tokens for fast response
-      temperature: 0.1 // Low temperature for accuracy
-    }, { signal })
-
-    return response.choices[0].message.content || ""
-  }
-
+  // FAST API CALLS (kept for potential future use)
   private async callGeminiFast(prompt: string, signal: AbortSignal): Promise<string> {
     if (!this.geminiApiKey) throw new Error("Gemini not initialized")
-
-    const config = configHelper.loadConfig()
     
-    // Use a simpler, more reliable model for fast text mode
+    // Use a simpler, more reliable model for fast mode
     const model = "gemini-2.5-flash-lite"
     
     const payload = {
@@ -866,8 +661,8 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
         parts: [{ text: prompt }]
       }],
       generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 50,
+        temperature: 0.2, // Slightly higher for better reasoning
+        maxOutputTokens: 100, // More tokens for complete answer
         candidateCount: 1
       },
       safetySettings: [
@@ -904,94 +699,6 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
     const data = response.data as GeminiResponse
     return data.candidates[0].content.parts[0].text
-  }
-
-  private async callAnthropicFast(prompt: string, signal: AbortSignal): Promise<string> {
-    if (!this.anthropicClient) throw new Error("Anthropic not initialized")
-
-    const config = configHelper.loadConfig()
-    const response = await this.anthropicClient.messages.create({
-      model: config.solutionModel || "claude-3-5-haiku-20241022",
-      max_tokens: 100,
-      messages: [{
-        role: "user",
-        content: [{ type: "text", text: prompt }]
-      }],
-      temperature: 0.1
-    })
-
-    return (response.content[0] as { type: 'text', text: string }).text
-  }
-
-  private async callAnthropic(systemPrompt: string, images: string[], signal: AbortSignal): Promise<string> {
-    if (!this.anthropicClient) throw new Error("Anthropic not initialized")
-
-    const config = configHelper.loadConfig()
-    const response = await this.anthropicClient.messages.create({
-      model: config.solutionModel || "claude-sonnet-4-20250514",
-      max_tokens: 32000,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: systemPrompt + "\n\nAnalyze these screenshots:" },
-          ...images.map(img => ({
-            type: "image" as const,
-            source: {
-              type: "base64" as const,
-              media_type: "image/png" as const,
-              data: img
-            }
-          }))
-        ]
-      }],
-      temperature: 0.2
-    })
-
-    return (response.content[0] as { type: 'text', text: string }).text
-  }
-
-  private async callAnthropicWithHistory(prompt: string, images: string[], signal: AbortSignal): Promise<string> {
-    if (!this.anthropicClient) throw new Error("Anthropic not initialized")
-
-    const config = configHelper.loadConfig()
-
-    // Build messages with history
-    const messages: any[] = []
-
-    if (this.lastResponse) {
-      messages.push({
-        role: "user",
-        content: [{ type: "text", text: "Previous question (see screenshots)" }]
-      })
-      messages.push({
-        role: "assistant",
-        content: [{ type: "text", text: this.lastResponse }]
-      })
-    }
-
-    messages.push({
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        ...images.map(img => ({
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: "image/png" as const,
-            data: img
-          }
-        }))
-      ]
-    })
-
-    const response = await this.anthropicClient.messages.create({
-      model: config.debuggingModel || "claude-sonnet-4-20250514",
-      max_tokens: 32000,
-      messages,
-      temperature: 0.2
-    })
-
-    return (response.content[0] as { type: 'text', text: string }).text
   }
 
   // RESPONSE PARSING
@@ -1148,5 +855,96 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
   private async getLanguage(): Promise<string> {
     return configHelper.getLanguage()
+  }
+
+  // GROQ API CALLS
+  private async callGroq(systemPrompt: string, _images: string[], signal: AbortSignal): Promise<string> {
+    if (!this.groqClient) throw new Error("Groq not initialized")
+
+    const config = configHelper.loadConfig()
+    
+    // Note: Groq currently doesn't support vision models, so we'll use text-only mode
+    // For image processing, we should use OCR first
+    const extractedText = await ocrHelper.extractTextFromMultiple(
+      this.deps.getScreenshotQueue()
+    )
+    
+    // Enhanced prompt for Groq - emphasizes correctness over option matching
+    const enhancedPrompt = `${systemPrompt}
+
+CRITICAL FOR ACCURACY:
+- Calculate the correct answer yourself - don't just pick from options
+- If you calculate 6600 but option says 6500, answer with YOUR calculation (6600)
+- OCR may misread values - trust your math over the extracted text
+- Prioritize CORRECTNESS over matching given options exactly
+- Give the right answer even if it doesn't match any option perfectly
+
+Question from OCR:
+${extractedText}`
+
+    const response = await this.groqClient.chat.completions.create({
+      model: config.groqModel || "llama-3.3-70b-versatile",
+      messages: [
+        { role: "user", content: enhancedPrompt }
+      ],
+      max_tokens: 8000, // Increased for complete responses
+      temperature: 0.1 // Lower for more focused answers
+    }, { signal })
+
+    return response.choices[0].message.content || ""
+  }
+
+  private async callGroqWithHistory(prompt: string, _images: string[], signal: AbortSignal): Promise<string> {
+    if (!this.groqClient) throw new Error("Groq not initialized")
+
+    const config = configHelper.loadConfig()
+
+    // Extract text from error screenshots
+    const extractedText = await ocrHelper.extractTextFromMultiple(
+      this.deps.getExtraScreenshotQueue()
+    )
+
+    // Build messages with history
+    const messages: any[] = [
+      { role: "system", content: "You are an expert debugging assistant." }
+    ]
+
+    // Add conversation history
+    if (this.conversationHistory.length > 0) {
+      messages.push({
+        role: "assistant",
+        content: this.lastResponse
+      })
+    }
+
+    // Add current debug request
+    messages.push({
+      role: "user",
+      content: `${prompt}\n\nExtracted text from error screenshots:\n\n${extractedText}`
+    })
+
+    const response = await this.groqClient.chat.completions.create({
+      model: config.groqModel || "llama-3.3-70b-versatile",
+      messages,
+      max_tokens: 8000, // Increased for complete debugging responses
+      temperature: 0.1 // Lower for more focused answers
+    }, { signal })
+
+    return response.choices[0].message.content || ""
+  }
+
+  // Fast Groq call (kept for potential future use)
+  private async callGroqFast(prompt: string, signal: AbortSignal): Promise<string> {
+    if (!this.groqClient) throw new Error("Groq not initialized")
+
+    const config = configHelper.loadConfig()
+    const response = await this.groqClient.chat.completions.create({
+      model: config.groqModel || "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+      temperature: 0.1
+    }, { signal })
+
+    return response.choices[0].message.content || ""
   }
 }
