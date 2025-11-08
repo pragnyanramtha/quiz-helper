@@ -27,12 +27,12 @@ Ctrl+H (question) → Ctrl+H (code) → Ctrl+Enter
 Ctrl+H (design) → Ctrl+Enter → Ctrl+Shift+C (HTML) → Ctrl+Shift+D (CSS)
 ```
 
-## 📋 Copy Shortcuts
+## 📋 Copy Shortcuts (FIXED!)
 
 | Shortcut | Copies |
 |----------|--------|
-| **Ctrl+Shift+C** | HTML/Code |
-| **Ctrl+Shift+D** | CSS |
+| **Ctrl+Shift+C** | HTML/Code (now reliable!) |
+| **Ctrl+Shift+D** | CSS (now reliable!) |
 | **Ctrl+Shift+V** | Type Clipboard |
 
 ## 🪟 Window Control
@@ -56,10 +56,12 @@ Ctrl+H (design) → Ctrl+Enter → Ctrl+Shift+C (HTML) → Ctrl+Shift+D (CSS)
 ## 💡 Pro Tips
 
 1. Use **Ctrl+D** for single questions
-2. Use **text mode** for MCQs (5-10x faster)
-3. Use **Ctrl+Shift+V** for paste-restricted editors
-4. Position window with **Ctrl+Arrow Keys**
-5. Try different models with **Ctrl+\**
+2. **Groq now handles**: MCQs, multiple answers, fill-in-blanks, Q&A
+3. **Gemini now reads**: "must have 3 images" → adds exactly 3 images
+4. **CSS copy fixed**: Works on all devices now
+5. Use **Ctrl+Shift+V** for paste-restricted editors
+6. Position window with **Ctrl+Arrow Keys**
+7. Try different models with **Ctrl+\**
 
 ## 🆘 Quick Help
 

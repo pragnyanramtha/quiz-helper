@@ -126,6 +126,7 @@ const Solutions: React.FC<SolutionsProps> = ({
   const [solutionData, setSolutionData] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
   const [htmlData, setHtmlData] = useState<string | null>(null)
+  const [cssData, setCssData] = useState<string | null>(null)
   const [questionType, setQuestionType] = useState<string | null>(null)
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null)
 
@@ -273,6 +274,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
         setHtmlData(solutionData.html || null)
+        setCssData(solutionData.css || null)
         setQuestionType(solutionData.question_type || null)
         setFinalAnswer(solutionData.final_answer_highlight || null)
 
@@ -361,23 +363,33 @@ const Solutions: React.FC<SolutionsProps> = ({
   // Listen for copy HTML event from global shortcut (Ctrl+Shift+C)
   useEffect(() => {
     const cleanup = window.electronAPI.onCopyHtmlToClipboard(() => {
-      const dataToCopy = questionType === "web_dev" && htmlData ? htmlData : solutionData
-      
-      if (dataToCopy) {
-        try {
+      try {
+        let dataToCopy = ""
+        let message = "Code copied to clipboard"
+        
+        // For web dev questions, prefer the separate HTML field
+        if (questionType === "web_dev" && htmlData) {
+          dataToCopy = htmlData
+          message = "HTML copied to clipboard"
+        } 
+        // Fallback to full solution data
+        else if (solutionData) {
+          dataToCopy = solutionData
+        }
+        
+        if (dataToCopy) {
           navigator.clipboard.writeText(dataToCopy).then(() => {
-            const message = questionType === "web_dev" ? "HTML copied to clipboard" : "Code copied to clipboard"
             showToast("Copied!", message, "success")
           }).catch((err) => {
             console.error("Failed to copy:", err)
             showToast("Error", "Failed to copy to clipboard", "error")
           })
-        } catch (err) {
-          console.error("Failed to copy:", err)
-          showToast("Error", "Failed to copy to clipboard", "error")
+        } else {
+          showToast("No Code", "No code available to copy", "neutral")
         }
-      } else {
-        showToast("No Code", "No code available to copy", "neutral")
+      } catch (err) {
+        console.error("Failed to copy:", err)
+        showToast("Error", "Failed to copy to clipboard", "error")
       }
     })
 
@@ -389,9 +401,15 @@ const Solutions: React.FC<SolutionsProps> = ({
   // Listen for copy CSS event from global shortcut (Ctrl+Shift+D)
   useEffect(() => {
     const cleanup = window.electronAPI.onCopyCssToClipboard(() => {
-      if (solutionData) {
-        try {
-          // Extract CSS from <style> tags in the solution
+      try {
+        let cssContent = ""
+        
+        // First, try to use the separate CSS data if available
+        if (cssData) {
+          cssContent = cssData
+        } 
+        // Fallback: Extract CSS from <style> tags in the solution
+        else if (solutionData) {
           const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi
           const matches = []
           let match
@@ -401,30 +419,30 @@ const Solutions: React.FC<SolutionsProps> = ({
           }
           
           if (matches.length > 0) {
-            const cssContent = matches.join('\n\n')
-            
-            navigator.clipboard.writeText(cssContent).then(() => {
-              showToast("Copied!", "CSS copied to clipboard", "success")
-            }).catch((err) => {
-              console.error("Failed to copy CSS:", err)
-              showToast("Error", "Failed to copy CSS to clipboard", "error")
-            })
-          } else {
-            showToast("No CSS", "No <style> tags found in the solution", "neutral")
+            cssContent = matches.join('\n\n')
           }
-        } catch (err) {
-          console.error("Failed to copy CSS:", err)
-          showToast("Error", "Failed to copy CSS to clipboard", "error")
         }
-      } else {
-        showToast("No Code", "No solution available to extract CSS from", "neutral")
+        
+        if (cssContent) {
+          navigator.clipboard.writeText(cssContent).then(() => {
+            showToast("Copied!", "CSS copied to clipboard", "success")
+          }).catch((err) => {
+            console.error("Failed to copy CSS:", err)
+            showToast("Error", "Failed to copy CSS to clipboard", "error")
+          })
+        } else {
+          showToast("No CSS", "No CSS found in the solution", "neutral")
+        }
+      } catch (err) {
+        console.error("Failed to copy CSS:", err)
+        showToast("Error", "Failed to copy CSS to clipboard", "error")
       }
     })
 
     return () => {
       cleanup()
     }
-  }, [solutionData, showToast])
+  }, [solutionData, cssData, showToast])
 
   const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
     setIsTooltipVisible(visible)

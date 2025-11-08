@@ -1,0 +1,9 @@
+{
+  "groqApiKey": "",
+  "geminiApiKey": "",
+  "mode": "mcq",
+  "groqModel": "llama-3.3-70b-versatile",
+  "geminiModel": "gemini-2.5-flash",
+  "language": "python",
+  "opacity": 1
+}

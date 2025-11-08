@@ -162,38 +162,61 @@ export class ProcessingHelper {
 
 RESPONSE FORMATS:
 
-1. MULTIPLE CHOICE QUESTION (MCQ):
+1. MULTIPLE CHOICE QUESTIONS (MCQ):
 CRITICAL: Calculate/solve the problem yourself and give the CORRECT answer.
+- Single answer MCQ: Choose ONE correct option (A/B/C/D)
+- Multiple answer MCQ: Choose ALL correct options (e.g., "A, C, D")
 - If you calculate a value, use YOUR calculated result (not necessarily the exact option text)
 - OCR errors may cause option values to be slightly wrong - trust your calculation
 - Example: If you calculate 6600 but option C shows "6500", answer "FINAL ANSWER: C 6600"
 
 Format:
-FINAL ANSWER: {A/B/C/D} {your correct answer}
+FINAL ANSWER: {A/B/C/D or A, B, C for multiple answers} {your correct answer}
 
 Examples: 
 - "FINAL ANSWER: B True"
 - "FINAL ANSWER: C 6600" (your calculation, even if option says 6500)
+- "FINAL ANSWER: A, C, D" (for multiple correct answers)
 - "FINAL ANSWER: A 5050"
 
 You may show brief reasoning if helpful (2-3 lines max), but ALWAYS end with "FINAL ANSWER:" line with YOUR correct calculation.
 
-2. PYTHON QUESTION:
+2. FILL IN THE BLANKS:
+Provide the missing word(s) or phrase(s) that complete the sentence correctly.
+
+Format:
+FINAL ANSWER: {word or phrase}
+
+Example:
+- "FINAL ANSWER: photosynthesis"
+- "FINAL ANSWER: World War II"
+
+3. SHORT ANSWER / Q&A:
+Provide a clear, concise answer to the question (1-3 sentences).
+
+Format:
+\`\`\`text
+Your answer here
+\`\`\`
+
+4. PYTHON QUESTION:
 Format:
 Main concept: [Brief explanation]
 
 \`\`\`python
-# Complete code solution
+# Complete code solution with examples if provided in question
 \`\`\`
 
-3. WEB DEVELOPMENT QUESTION:
+5. WEB DEVELOPMENT QUESTION:
 CRITICAL INSTRUCTIONS:
 - Read ALL text in screenshots carefully, including helping instructions and test case requirements
 - If test cases mention specific HTML elements, Bootstrap classes, or CSS properties - YOU MUST include them ALL
+- If the question states "the HTML container must have 3 images", include exactly 3 images in your HTML
 - Common test requirements: container, row, col-md-*, text-center, d-md-*, d-none, specific HTML tags
 - Match the design exactly: colors, spacing, layout, fonts
 - NO external links, NO CDN links - use web-safe fonts only
 - Include ALL required Bootstrap classes even if they seem redundant
+- ALL CSS must be inside the <style> tag in the HTML
 
 Format:
 <html>
@@ -204,36 +227,25 @@ Format:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solution</title>
     <style>
-        /* Include Bootstrap-like styles inline if Bootstrap classes are required */
+        /* ALL CSS goes here - include Bootstrap-like styles inline if Bootstrap classes are required */
+        /* Follow ALL requirements from test cases */
     </style>
 </head>
 <body>
     <!-- Complete HTML with ALL required elements and classes from test cases -->
+    <!-- If question says "3 images", include exactly 3 <img> tags -->
 </body>
 </html>
-
-
-/* Additional CSS if needed */
-body {
-  css code
-}
-.class-name {
-  more css
-}
-
-4. ENGLISH/TEXT QUESTION:
-Format:
-\`\`\`text
-Complete answer
-\`\`\`
 
 AUTO-DETECT the question type and respond accordingly. User's preferred language: ${language}
 
 IMPORTANT REMINDERS:
 - For web development: If test cases list required elements/classes (like "container", "row", "col-md-", "text-center", "d-md-", "d-none"), include ALL of them in your solution
+- If question specifies number of elements (e.g., "3 images"), include exactly that many
 - Read helping instructions carefully - they often contain crucial hints
 - Match designs pixel-perfect when screenshots show visual layouts
-- Test cases are requirements, not suggestions - satisfy every single one`
+- Test cases are requirements, not suggestions - satisfy every single one
+- For Python: If examples are provided in the question, include them in your code as comments or test cases`
 
       let responseText = ""
 
@@ -729,12 +741,19 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     // Support multiple formats:
     // - "FINAL ANSWER: A True"
     // - "FINAL ANSWER: B 4:3"
+    // - "FINAL ANSWER: A, C, D" (multiple answers)
+    // - "FINAL ANSWER: photosynthesis" (fill in the blank)
     // - "FINAL ANSWER: C Some text"
     // - "FINAL ANSWER: option 4) text" (legacy)
     // - "FINAL ANSWER: option 4" (legacy)
     
-    // New format: FINAL ANSWER: {A/B/C/D} {value}
-    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D])\s+(.+?)$/im)
+    // New format: FINAL ANSWER: {A/B/C/D or A, C, D or text} {optional value}
+    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D](?:\s*,\s*[A-D])*)\s*(.*)$/im)
+    
+    // Fill in the blank or single word answer
+    if (!finalAnswerMatch) {
+      finalAnswerMatch = response.match(/FINAL ANSWER:\s*(.+?)$/im)
+    }
     
     // Legacy format: FINAL ANSWER: option X
     if (!finalAnswerMatch) {
@@ -754,12 +773,25 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
       const secondCapture = finalAnswerMatch[2]
       const thirdCapture = finalAnswerMatch[3]
       
-      // Check if it's new format (single letter A-D)
-      if (firstCapture.match(/^[A-D]$/i) && secondCapture) {
+      // Check if it's multiple choice format (A, B, C, D or combinations)
+      if (firstCapture.match(/^[A-D](?:\s*,\s*[A-D])*$/i)) {
+        // Multiple or single choice: "A", "A, C", "A, B, D"
+        const choices = firstCapture.toUpperCase()
+        const value = secondCapture ? secondCapture.trim() : ""
+        answer = value ? `${choices} ${value}` : choices
+      } 
+      // Check if it's new format (single letter A-D with value)
+      else if (firstCapture.match(/^[A-D]$/i) && secondCapture) {
         // New format: "A True" or "B 4:3"
         answer = `${firstCapture.toUpperCase()} ${secondCapture.trim()}`
-      } else {
-        // Legacy format
+      } 
+      // Fill in the blank or text answer
+      else if (!secondCapture && !thirdCapture) {
+        // Just the answer text
+        answer = firstCapture.trim()
+      }
+      // Legacy format
+      else {
         const optionNum = firstCapture
         const optionLetter = secondCapture
         const optionText = thirdCapture ? thirdCapture.trim() : ""
@@ -874,6 +906,9 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
 CRITICAL FOR ACCURACY:
 - Calculate the correct answer yourself - don't just pick from options
+- For multiple answer MCQs, select ALL correct options (e.g., "A, C, D")
+- For fill in the blanks, provide the exact word/phrase needed
+- For Q&A questions, give clear, concise answers (1-3 sentences)
 - If you calculate 6600 but option says 6500, answer with YOUR calculation (6600)
 - OCR may misread values - trust your math over the extracted text
 - Prioritize CORRECTNESS over matching given options exactly
