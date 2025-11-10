@@ -7,9 +7,37 @@ export class ShortcutsHelper {
   private deps: IShortcutsHelperDeps
   private isTyping: boolean = false
   private shouldStopTyping: boolean = false
+  private keypressListener: any = null
 
   constructor(deps: IShortcutsHelperDeps) {
     this.deps = deps
+  }
+
+  private setupKeypressListener(): void {
+    // Set up a listener that stops typing on any keypress
+    if (this.keypressListener) {
+      return // Already set up
+    }
+
+    // Use nut-js keyboard events if available, otherwise use a timer-based approach
+    const checkInterval = setInterval(() => {
+      if (!this.isTyping) {
+        // Clean up if not typing
+        if (this.keypressListener) {
+          clearInterval(this.keypressListener)
+          this.keypressListener = null
+        }
+      }
+    }, 100)
+
+    this.keypressListener = checkInterval
+  }
+
+  private stopTypingOnKeypress(): void {
+    if (this.isTyping) {
+      console.log("Keypress detected - stopping typing")
+      this.shouldStopTyping = true
+    }
   }
 
   private adjustOpacity(delta: number): void {
@@ -176,6 +204,12 @@ export class ShortcutsHelper {
     globalShortcut.register("CommandOrControl+Up", () => {
       console.log("Command/Ctrl + Up pressed. Moving window Up.")
       this.deps.moveWindowUp()
+    })
+
+    // Center window shortcut - Ctrl+N
+    globalShortcut.register("CommandOrControl+N", () => {
+      console.log("Command/Ctrl + N pressed. Centering window and making it visible.")
+      this.deps.centerWindow()
     })
 
     globalShortcut.register("CommandOrControl+B", () => {
@@ -366,6 +400,26 @@ export class ShortcutsHelper {
         this.isTyping = true
         this.shouldStopTyping = false
 
+        // Register ONLY special key shortcuts (not letters/numbers to avoid conflicts)
+        const stopShortcuts = [
+          'Escape',
+          'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+        ]
+
+        // Register stop shortcuts
+        stopShortcuts.forEach(key => {
+          try {
+            globalShortcut.register(key, () => {
+              if (this.isTyping) {
+                console.log(`Key ${key} pressed - stopping typing`)
+                this.shouldStopTyping = true
+              }
+            })
+          } catch (err) {
+            // Some keys might already be registered, ignore
+          }
+        })
+
         // Small delay to allow user to focus the target window
         await new Promise(resolve => setTimeout(resolve, 500))
 
@@ -390,6 +444,21 @@ export class ShortcutsHelper {
       } finally {
         this.isTyping = false
         this.shouldStopTyping = false
+        
+        // Unregister all temporary stop shortcuts
+        const stopShortcuts = [
+          'Escape',
+          'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+        ]
+        
+        stopShortcuts.forEach(key => {
+          try {
+            globalShortcut.unregister(key)
+          } catch (err) {
+            // Ignore errors
+          }
+        })
+        
         // Reset to default speed
         keyboard.config.autoDelayMs = 100
       }

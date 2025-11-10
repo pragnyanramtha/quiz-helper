@@ -85,6 +85,7 @@ export interface IShortcutsHelperDeps {
   moveWindowRight: () => void
   moveWindowUp: () => void
   moveWindowDown: () => void
+  centerWindow: () => void
 }
 
 export interface IIpcHandlerDeps {
@@ -150,7 +151,8 @@ function initializeHelpers() {
         )
       ),
     moveWindowUp: () => moveWindowVertical((y) => y - state.step),
-    moveWindowDown: () => moveWindowVertical((y) => y + state.step)
+    moveWindowDown: () => moveWindowVertical((y) => y + state.step),
+    centerWindow
   } as IShortcutsHelperDeps)
 }
 
@@ -405,30 +407,12 @@ function handleWindowMove(): void {
   if (!state.mainWindow) return
   const bounds = state.mainWindow.getBounds()
   
-  // Constrain window position with 20% overflow allowance for better scrolling
-  const windowWidth = bounds.width
-  const windowHeight = bounds.height
+  // No constraints - allow window to be moved anywhere for better scrolling
+  // User can use Ctrl+N to center and recover the window if it goes off-screen
   
-  // Allow 20% of window to go off-screen in each direction
-  const overflowX = Math.floor(windowWidth * 0.2)
-  const overflowY = Math.floor(windowHeight * 0.2)
-  
-  const minX = -overflowX
-  const maxX = state.screenWidth - windowWidth + overflowX
-  const minY = -overflowY
-  const maxY = state.screenHeight - windowHeight + overflowY
-  
-  const constrainedX = Math.max(minX, Math.min(maxX, bounds.x))
-  const constrainedY = Math.max(minY, Math.min(maxY, bounds.y))
-  
-  // If position was out of bounds, move it back
-  if (constrainedX !== bounds.x || constrainedY !== bounds.y) {
-    state.mainWindow.setPosition(Math.round(constrainedX), Math.round(constrainedY))
-  }
-  
-  state.windowPosition = { x: constrainedX, y: constrainedY }
-  state.currentX = constrainedX
-  state.currentY = constrainedY
+  state.windowPosition = { x: bounds.x, y: bounds.y }
+  state.currentX = bounds.x
+  state.currentY = bounds.y
 }
 
 function handleWindowResize(): void {
@@ -488,19 +472,14 @@ function toggleMainWindow(): void {
   }
 }
 
-// Window movement functions with boundary constraints
+// Window movement functions without boundary constraints
 function moveWindowHorizontal(updateFn: (x: number) => number): void {
   if (!state.mainWindow) return
   
   const newX = updateFn(state.currentX)
-  const windowWidth = state.windowSize?.width || 0
   
-  // Allow 20% overflow for better scrolling
-  const overflowX = Math.floor(windowWidth * 0.2)
-  const minX = -overflowX
-  const maxX = state.screenWidth - windowWidth + overflowX
-  
-  state.currentX = Math.max(minX, Math.min(maxX, newX))
+  // No constraints - allow free movement
+  state.currentX = newX
   state.mainWindow.setPosition(
     Math.round(state.currentX),
     Math.round(state.currentY)
@@ -511,30 +490,42 @@ function moveWindowVertical(updateFn: (y: number) => number): void {
   if (!state.mainWindow) return
 
   const newY = updateFn(state.currentY)
-  const windowHeight = state.windowSize?.height || 0
   
-  // Allow 20% overflow for better scrolling
-  const overflowY = Math.floor(windowHeight * 0.2)
-  const minY = -overflowY
-  const maxY = state.screenHeight - windowHeight + overflowY
-
-  // Log the current state and limits
-  console.log({
-    newY,
-    minY,
-    maxY,
-    screenHeight: state.screenHeight,
-    windowHeight: state.windowSize?.height,
-    currentY: state.currentY,
-    overflowY
-  })
-
-  // Constrain to screen bounds with overflow
-  state.currentY = Math.max(minY, Math.min(maxY, newY))
+  // No constraints - allow free movement
+  state.currentY = newY
   state.mainWindow.setPosition(
     Math.round(state.currentX),
     Math.round(state.currentY)
   )
+}
+
+// Center window on screen and make it visible
+function centerWindow(): void {
+  if (!state.mainWindow) return
+  
+  const windowWidth = state.windowSize?.width || 0
+  const windowHeight = state.windowSize?.height || 0
+  
+  // Calculate center position
+  const centerX = Math.floor((state.screenWidth - windowWidth) / 2)
+  const centerY = Math.floor((state.screenHeight - windowHeight) / 2)
+  
+  // Update state
+  state.currentX = centerX
+  state.currentY = centerY
+  
+  // Set position
+  state.mainWindow.setPosition(
+    Math.round(centerX),
+    Math.round(centerY)
+  )
+  
+  // Make sure window is visible
+  if (!state.isWindowVisible) {
+    toggleMainWindow()
+  }
+  
+  console.log(`Window centered at (${centerX}, ${centerY})`)
 }
 
 // Window dimension functions

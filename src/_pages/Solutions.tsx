@@ -51,12 +51,41 @@ const SolutionSection = ({
 }) => {
   const [copied, setCopied] = useState(false)
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (typeof content === "string") {
-      navigator.clipboard.writeText(content).then(() => {
+      try {
+        // Method 1: Try navigator.clipboard (modern API)
+        await navigator.clipboard.writeText(content)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
-      })
+      } catch (clipboardErr) {
+        console.warn("navigator.clipboard failed, trying fallback:", clipboardErr)
+        
+        // Method 2: Fallback to document.execCommand (legacy but more reliable)
+        const textArea = document.createElement('textarea')
+        textArea.value = content
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        
+        try {
+          const successful = document.execCommand('copy')
+          document.body.removeChild(textArea)
+          
+          if (successful) {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          } else {
+            console.error("All clipboard methods failed")
+          }
+        } catch (execErr) {
+          document.body.removeChild(textArea)
+          console.error("Failed to copy:", execErr)
+        }
+      }
     }
   }
 
@@ -362,7 +391,7 @@ const Solutions: React.FC<SolutionsProps> = ({
 
   // Listen for copy HTML event from global shortcut (Ctrl+Shift+C)
   useEffect(() => {
-    const cleanup = window.electronAPI.onCopyHtmlToClipboard(() => {
+    const cleanup = window.electronAPI.onCopyHtmlToClipboard(async () => {
       try {
         let dataToCopy = ""
         let message = "Code copied to clipboard"
@@ -378,12 +407,39 @@ const Solutions: React.FC<SolutionsProps> = ({
         }
         
         if (dataToCopy) {
-          navigator.clipboard.writeText(dataToCopy).then(() => {
+          // Try multiple clipboard methods for better reliability
+          try {
+            // Method 1: Try navigator.clipboard (modern API)
+            await navigator.clipboard.writeText(dataToCopy)
             showToast("Copied!", message, "success")
-          }).catch((err) => {
-            console.error("Failed to copy:", err)
-            showToast("Error", "Failed to copy to clipboard", "error")
-          })
+          } catch (clipboardErr) {
+            console.warn("navigator.clipboard failed, trying fallback:", clipboardErr)
+            
+            // Method 2: Fallback to document.execCommand (legacy but more reliable)
+            const textArea = document.createElement('textarea')
+            textArea.value = dataToCopy
+            textArea.style.position = 'fixed'
+            textArea.style.left = '-999999px'
+            textArea.style.top = '-999999px'
+            document.body.appendChild(textArea)
+            textArea.focus()
+            textArea.select()
+            
+            try {
+              const successful = document.execCommand('copy')
+              document.body.removeChild(textArea)
+              
+              if (successful) {
+                showToast("Copied!", message, "success")
+              } else {
+                throw new Error("execCommand failed")
+              }
+            } catch (execErr) {
+              document.body.removeChild(textArea)
+              console.error("All clipboard methods failed:", execErr)
+              showToast("Error", "Failed to copy to clipboard. Please try again.", "error")
+            }
+          }
         } else {
           showToast("No Code", "No code available to copy", "neutral")
         }
@@ -400,7 +456,7 @@ const Solutions: React.FC<SolutionsProps> = ({
 
   // Listen for copy CSS event from global shortcut (Ctrl+Shift+D)
   useEffect(() => {
-    const cleanup = window.electronAPI.onCopyCssToClipboard(() => {
+    const cleanup = window.electronAPI.onCopyCssToClipboard(async () => {
       try {
         let cssContent = ""
         
@@ -415,7 +471,9 @@ const Solutions: React.FC<SolutionsProps> = ({
           let match
           
           while ((match = styleRegex.exec(solutionData)) !== null) {
-            matches.push(match[1].trim())
+            if (match[1] && match[1].trim()) {
+              matches.push(match[1].trim())
+            }
           }
           
           if (matches.length > 0) {
@@ -423,13 +481,49 @@ const Solutions: React.FC<SolutionsProps> = ({
           }
         }
         
+        // Remove markdown code blocks if present (```css or ```)
         if (cssContent) {
-          navigator.clipboard.writeText(cssContent).then(() => {
+          cssContent = cssContent
+            .replace(/^```css\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/```\s*$/i, '')
+            .trim()
+        }
+        
+        if (cssContent) {
+          // Try multiple clipboard methods for better reliability
+          try {
+            // Method 1: Try navigator.clipboard (modern API)
+            await navigator.clipboard.writeText(cssContent)
             showToast("Copied!", "CSS copied to clipboard", "success")
-          }).catch((err) => {
-            console.error("Failed to copy CSS:", err)
-            showToast("Error", "Failed to copy CSS to clipboard", "error")
-          })
+          } catch (clipboardErr) {
+            console.warn("navigator.clipboard failed, trying fallback:", clipboardErr)
+            
+            // Method 2: Fallback to document.execCommand (legacy but more reliable)
+            const textArea = document.createElement('textarea')
+            textArea.value = cssContent
+            textArea.style.position = 'fixed'
+            textArea.style.left = '-999999px'
+            textArea.style.top = '-999999px'
+            document.body.appendChild(textArea)
+            textArea.focus()
+            textArea.select()
+            
+            try {
+              const successful = document.execCommand('copy')
+              document.body.removeChild(textArea)
+              
+              if (successful) {
+                showToast("Copied!", "CSS copied to clipboard", "success")
+              } else {
+                throw new Error("execCommand failed")
+              }
+            } catch (execErr) {
+              document.body.removeChild(textArea)
+              console.error("All clipboard methods failed:", execErr)
+              showToast("Error", "Failed to copy CSS to clipboard. Please try again.", "error")
+            }
+          }
         } else {
           showToast("No CSS", "No CSS found in the solution", "neutral")
         }

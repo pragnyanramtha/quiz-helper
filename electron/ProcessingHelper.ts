@@ -165,21 +165,21 @@ RESPONSE FORMATS:
 1. MULTIPLE CHOICE QUESTIONS (MCQ):
 CRITICAL: Calculate/solve the problem yourself and give the CORRECT answer.
 - Single answer MCQ: Choose ONE correct option (A/B/C/D)
-- Multiple answer MCQ: Choose ALL correct options (e.g., "A, C, D")
+- Multiple answer MCQ: Choose ALL correct options (e.g., "1, 3, 4")
 - If you calculate a value, use YOUR calculated result (not necessarily the exact option text)
 - OCR errors may cause option values to be slightly wrong - trust your calculation
-- Example: If you calculate 6600 but option C shows "6500", answer "FINAL ANSWER: C 6600"
+- Example: If you calculate 6600 but option 3 shows "6500", answer "FINAL ANSWER: option 3) 6600"
 
-Format:
-FINAL ANSWER: {A/B/C/D or A, B, C for multiple answers} {your correct answer}
+Format (GROQ MODE):
+FINAL ANSWER: option {number}) {your correct answer or statement}
 
 Examples: 
-- "FINAL ANSWER: B True"
-- "FINAL ANSWER: C 6600" (your calculation, even if option says 6500)
-- "FINAL ANSWER: A, C, D" (for multiple correct answers)
-- "FINAL ANSWER: A 5050"
+- "FINAL ANSWER: option 2) True"
+- "FINAL ANSWER: option 3) 6600" (your calculation, even if option says 6500)
+- "FINAL ANSWER: option 1, 3, 4) Multiple correct answers"
+- "FINAL ANSWER: option 1) 5050"
 
-You may show brief reasoning if helpful (2-3 lines max), but ALWAYS end with "FINAL ANSWER:" line with YOUR correct calculation.
+You may show brief reasoning if helpful (2-3 lines max), but ALWAYS end with "FINAL ANSWER: option X)" line with YOUR correct calculation.
 
 2. FILL IN THE BLANKS:
 Provide the missing word(s) or phrase(s) that complete the sentence correctly.
@@ -200,26 +200,86 @@ Your answer here
 \`\`\`
 
 4. PYTHON QUESTION:
+CRITICAL: Write MINIMAL, CONCISE code - prefer one-liners when possible.
+- Use list comprehensions, lambda functions, and built-in functions
+- Avoid unnecessary variables or verbose code
+- If it can be done in one line, do it in one line
+- Only add comments if absolutely necessary
+
 Format:
 Main concept: [Brief explanation]
 
 \`\`\`python
-# Complete code solution with examples if provided in question
+# Minimal code solution - one-liner preferred
+# Include examples from question if provided
 \`\`\`
 
+Examples of minimal Python:
+- Sum: sum(range(1, n+1))
+- Filter: [x for x in lst if x > 0]
+- Map: list(map(lambda x: x**2, nums))
+
 5. WEB DEVELOPMENT QUESTION:
-CRITICAL INSTRUCTIONS:
-- Read ALL text in screenshots carefully, including helping instructions and test case requirements
-- If test cases mention specific HTML elements, Bootstrap classes, or CSS properties - YOU MUST include them ALL
-- If the question states "the HTML container must have 3 images", include exactly 3 images in your HTML
-- Common test requirements: container, row, col-md-*, text-center, d-md-*, d-none, specific HTML tags
-- Match the design exactly: colors, spacing, layout, fonts
-- NO external links, NO CDN links - use web-safe fonts only
-- Include ALL required Bootstrap classes even if they seem redundant
-- ALL CSS must be inside the <style> tag in the HTML
+⚠️ CRITICAL - FOLLOW INSTRUCTIONS EXACTLY ⚠️
+
+STEP 1: READ EVERYTHING CAREFULLY
+- Read ALL text in screenshots: question, guidelines, helping text, test cases, requirements
+- If there's a design image, study it carefully - colors, spacing, layout, fonts, sizes
+- Note EVERY requirement: "use Bootstrap", "3 images", "specific class names", etc.
+
+STEP 2: ANALYZE REQUIREMENTS
+- Bootstrap required? Include ALL Bootstrap classes mentioned (container, row, col-*, text-center, etc.)
+- Specific elements? Count them: "3 images" = exactly 3 <img> tags
+- Design image? Match it PIXEL-PERFECT: exact colors, spacing, fonts, sizes
+- Test cases? Satisfy EVERY SINGLE ONE - they are requirements, not suggestions
+- Naming conventions? Use what's specified OR industry standards (kebab-case for CSS classes)
+
+STEP 3: INDUSTRY STANDARDS (if not specified otherwise)
+CSS Naming:
+- Use BEM methodology: .block__element--modifier
+- Or semantic names: .header, .nav, .hero, .card, .footer
+- Kebab-case: .main-content, .nav-item, .btn-primary
+- NO generic names like .div1, .box, .thing
+
+HTML Structure:
+- Semantic tags: <header>, <nav>, <main>, <section>, <article>, <footer>
+- Proper hierarchy: h1 > h2 > h3
+- Accessibility: alt attributes, aria labels, proper form labels
+
+CSS Best Practices:
+- Mobile-first approach
+- Flexbox or Grid for layouts
+- CSS variables for colors/spacing (if appropriate)
+- Consistent spacing units (rem, em, or px)
+
+STEP 4: BOOTSTRAP IMPLEMENTATION (if required)
+- Include ALL Bootstrap utility classes mentioned in test cases
+- Common classes: container, row, col-*, d-flex, justify-content-*, align-items-*
+- Responsive classes: d-none, d-md-block, col-md-6, etc.
+- Text utilities: text-center, text-left, font-weight-bold
+- Spacing: m-*, p-*, mt-*, mb-*, etc.
+- Write Bootstrap-like CSS inline in <style> tag (NO CDN links)
+
+STEP 5: DESIGN MATCHING (if image provided)
+- Colors: Extract EXACT colors from image (use color picker mentally)
+- Spacing: Match padding, margins, gaps exactly
+- Typography: Match font sizes, weights, line heights
+- Layout: Match exact positioning, alignment, structure
+- Images: Use placeholder images with correct dimensions
+- Responsive: Make it work on all screen sizes if shown
+
+STEP 6: VALIDATION CHECKLIST
+✓ All test case requirements included?
+✓ All specified elements present? (count them!)
+✓ Bootstrap classes all included? (if required)
+✓ Design matches image? (if provided)
+✓ Industry standard naming? (if not specified)
+✓ All CSS inside <style> tag?
+✓ No external links or CDN?
+✓ Semantic HTML used?
+✓ Accessible markup?
 
 Format:
-<html>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -227,25 +287,51 @@ Format:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solution</title>
     <style>
-        /* ALL CSS goes here - include Bootstrap-like styles inline if Bootstrap classes are required */
-        /* Follow ALL requirements from test cases */
+        /* ALL CSS here - Bootstrap-like styles if Bootstrap required */
+        /* Use industry standard naming: .header, .nav, .hero, .card, etc. */
+        /* Match design image EXACTLY if provided */
+        /* Satisfy ALL test case requirements */
     </style>
 </head>
 <body>
-    <!-- Complete HTML with ALL required elements and classes from test cases -->
-    <!-- If question says "3 images", include exactly 3 <img> tags -->
+    <!-- Semantic HTML structure -->
+    <!-- ALL required elements (count them!) -->
+    <!-- ALL Bootstrap classes (if required) -->
+    <!-- Match design image EXACTLY (if provided) -->
 </body>
 </html>
 
+REMEMBER:
+- Instructions are LAW - follow them EXACTLY
+- Test cases are REQUIREMENTS - satisfy ALL of them
+- Design images are BLUEPRINTS - match them PIXEL-PERFECT
+- Bootstrap classes are MANDATORY - include ALL mentioned
+- Industry standards are DEFAULT - use them unless told otherwise
+
 AUTO-DETECT the question type and respond accordingly. User's preferred language: ${language}
 
-IMPORTANT REMINDERS:
-- For web development: If test cases list required elements/classes (like "container", "row", "col-md-", "text-center", "d-md-", "d-none"), include ALL of them in your solution
-- If question specifies number of elements (e.g., "3 images"), include exactly that many
-- Read helping instructions carefully - they often contain crucial hints
-- Match designs pixel-perfect when screenshots show visual layouts
-- Test cases are requirements, not suggestions - satisfy every single one
-- For Python: If examples are provided in the question, include them in your code as comments or test cases`
+🔴 CRITICAL REMINDERS - READ BEFORE RESPONDING 🔴
+
+WEB DEVELOPMENT:
+1. FOLLOW INSTRUCTIONS EXACTLY - Every word matters
+2. TEST CASES = REQUIREMENTS - Include ALL mentioned elements/classes
+3. DESIGN IMAGES = BLUEPRINTS - Match colors, spacing, fonts EXACTLY
+4. BOOTSTRAP - If mentioned, include ALL classes (container, row, col-*, d-*, text-*, etc.)
+5. ELEMENT COUNT - "3 images" means EXACTLY 3 <img> tags, not 2, not 4
+6. NAMING - Use industry standards (BEM, semantic names, kebab-case) unless specified
+7. CSS LOCATION - ALL CSS inside <style> tag, NO external links
+8. SEMANTIC HTML - Use <header>, <nav>, <main>, <section>, <footer>
+9. ACCESSIBILITY - Include alt attributes, aria labels, proper structure
+10. VALIDATION - Before responding, check: ✓ All requirements? ✓ All classes? ✓ Design match?
+
+PYTHON:
+- Minimal code - one-liners preferred
+- Include examples from question if provided
+
+GENERAL:
+- Read helping instructions - they contain crucial hints
+- Guidelines are MANDATORY, not optional
+- If unsure, follow industry best practices`
 
       let responseText = ""
 
@@ -599,7 +685,25 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     )
 
     const data = response.data as GeminiResponse
-    return data.candidates[0].content.parts[0].text
+    
+    // Validate response structure
+    if (!data || !data.candidates || data.candidates.length === 0) {
+      console.error("Invalid Gemini response structure:", JSON.stringify(data, null, 2))
+      throw new Error("Gemini API returned invalid response structure. Please try again.")
+    }
+    
+    if (!data.candidates[0].content || !data.candidates[0].content.parts || data.candidates[0].content.parts.length === 0) {
+      console.error("Invalid Gemini response content:", JSON.stringify(data.candidates[0], null, 2))
+      throw new Error("Gemini API returned empty response. Please try again.")
+    }
+    
+    const text = data.candidates[0].content.parts[0].text
+    if (!text) {
+      console.error("Gemini response has no text:", JSON.stringify(data.candidates[0].content.parts[0], null, 2))
+      throw new Error("Gemini API returned empty text. Please try again.")
+    }
+    
+    return text
   }
 
   private async callGeminiWithHistory(prompt: string, images: string[], signal: AbortSignal): Promise<string> {
@@ -657,7 +761,25 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     )
 
     const data = response.data as GeminiResponse
-    return data.candidates[0].content.parts[0].text
+    
+    // Validate response structure
+    if (!data || !data.candidates || data.candidates.length === 0) {
+      console.error("Invalid Gemini response structure:", JSON.stringify(data, null, 2))
+      throw new Error("Gemini API returned invalid response structure. Please try again.")
+    }
+    
+    if (!data.candidates[0].content || !data.candidates[0].content.parts || data.candidates[0].content.parts.length === 0) {
+      console.error("Invalid Gemini response content:", JSON.stringify(data.candidates[0], null, 2))
+      throw new Error("Gemini API returned empty response. Please try again.")
+    }
+    
+    const text = data.candidates[0].content.parts[0].text
+    if (!text) {
+      console.error("Gemini response has no text:", JSON.stringify(data.candidates[0].content.parts[0], null, 2))
+      throw new Error("Gemini API returned empty text. Please try again.")
+    }
+    
+    return text
   }
 
   // FAST API CALLS (kept for potential future use)
@@ -737,79 +859,96 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
   }
 
   private parseMCQ(response: string): any {
-    // Try to find "FINAL ANSWER:" first (new format)
+    // Try to find "FINAL ANSWER:" first
     // Support multiple formats:
-    // - "FINAL ANSWER: A True"
-    // - "FINAL ANSWER: B 4:3"
-    // - "FINAL ANSWER: A, C, D" (multiple answers)
+    // - "FINAL ANSWER: option 1) True" (NEW GROQ FORMAT - PRIORITY)
+    // - "FINAL ANSWER: option 3) 6600"
+    // - "FINAL ANSWER: option 1, 3, 4) Multiple answers"
+    // - "FINAL ANSWER: A True" (legacy)
     // - "FINAL ANSWER: photosynthesis" (fill in the blank)
-    // - "FINAL ANSWER: C Some text"
-    // - "FINAL ANSWER: option 4) text" (legacy)
-    // - "FINAL ANSWER: option 4" (legacy)
     
-    // New format: FINAL ANSWER: {A/B/C/D or A, C, D or text} {optional value}
-    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D](?:\s*,\s*[A-D])*)\s*(.*)$/im)
+    // NEW FORMAT (PRIORITY): FINAL ANSWER: option X) value
+    let finalAnswerMatch = response.match(/FINAL ANSWER:\s*option\s+([\d,\s]+)\)\s*(.+?)$/im)
     
-    // Fill in the blank or single word answer
-    if (!finalAnswerMatch) {
-      finalAnswerMatch = response.match(/FINAL ANSWER:\s*(.+?)$/im)
-    }
+    let answer = "Answer not found"
     
-    // Legacy format: FINAL ANSWER: option X
-    if (!finalAnswerMatch) {
-      finalAnswerMatch = response.match(/FINAL ANSWER:\s*(?:option\s+)?([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
-    }
-    
-    // Fallback to finding any "option X" pattern
-    if (!finalAnswerMatch) {
-      finalAnswerMatch = response.match(/option\s+([a-z0-9]+)(?:\/([a-z]))?\)?\s*(.*)$/im)
+    if (finalAnswerMatch) {
+      // New Groq format: "option 1) True" or "option 1, 3) Multiple"
+      const optionNumbers = finalAnswerMatch[1].trim()
+      const optionValue = finalAnswerMatch[2].trim()
+      answer = `option ${optionNumbers}) ${optionValue}`
+    } else {
+      // Try legacy formats
+      
+      // Letter format: A, B, C, D
+      finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D](?:\s*,\s*[A-D])*)\s*(.*)$/im)
+      
+      if (finalAnswerMatch) {
+        const firstCapture = finalAnswerMatch[1]
+        const secondCapture = finalAnswerMatch[2]
+        
+        // Check if it's multiple choice format (A, B, C, D or combinations)
+        if (firstCapture.match(/^[A-D](?:\s*,\s*[A-D])*$/i)) {
+          const choices = firstCapture.toUpperCase()
+          const value = secondCapture ? secondCapture.trim() : ""
+          answer = value ? `${choices} ${value}` : choices
+        }
+      } else {
+        // Fill in the blank or single word answer
+        finalAnswerMatch = response.match(/FINAL ANSWER:\s*(.+?)$/im)
+        
+        if (finalAnswerMatch) {
+          answer = finalAnswerMatch[1].trim()
+        } else {
+          // Fallback to finding any "option X)" pattern
+          finalAnswerMatch = response.match(/option\s+([\d,\s]+)\)\s*(.*)$/im)
+          
+          if (finalAnswerMatch) {
+            const optionNumbers = finalAnswerMatch[1].trim()
+            const optionValue = finalAnswerMatch[2].trim()
+            answer = `option ${optionNumbers}) ${optionValue}`
+          }
+        }
+      }
     }
     
     const reasoningMatch = response.match(/```markdown\s*([\s\S]*?)```/)
     
-    let answer = "Answer not found"
-    if (finalAnswerMatch) {
-      const firstCapture = finalAnswerMatch[1]
-      const secondCapture = finalAnswerMatch[2]
-      const thirdCapture = finalAnswerMatch[3]
-      
-      // Check if it's multiple choice format (A, B, C, D or combinations)
-      if (firstCapture.match(/^[A-D](?:\s*,\s*[A-D])*$/i)) {
-        // Multiple or single choice: "A", "A, C", "A, B, D"
-        const choices = firstCapture.toUpperCase()
-        const value = secondCapture ? secondCapture.trim() : ""
-        answer = value ? `${choices} ${value}` : choices
-      } 
-      // Check if it's new format (single letter A-D with value)
-      else if (firstCapture.match(/^[A-D]$/i) && secondCapture) {
-        // New format: "A True" or "B 4:3"
-        answer = `${firstCapture.toUpperCase()} ${secondCapture.trim()}`
-      } 
-      // Fill in the blank or text answer
-      else if (!secondCapture && !thirdCapture) {
-        // Just the answer text
-        answer = firstCapture.trim()
+    // Extract only the actual reasoning (after the prompt, before or including FINAL ANSWER)
+    let actualResponse = response
+    
+    // Remove the system prompt if it appears in the response
+    // Look for common prompt markers and remove everything before the actual answer
+    const promptMarkers = [
+      /1\. MULTIPLE CHOICE QUESTIONS[\s\S]*?FINAL ANSWER:/i,
+      /RESPONSE FORMATS:[\s\S]*?(?=The question|Question:|FINAL ANSWER:)/i,
+      /You are an expert[\s\S]*?(?=The question|Question:|FINAL ANSWER:)/i
+    ]
+    
+    for (const marker of promptMarkers) {
+      if (marker.test(actualResponse)) {
+        // Extract everything after the prompt
+        actualResponse = actualResponse.replace(marker, '')
+        break
       }
-      // Legacy format
-      else {
-        const optionNum = firstCapture
-        const optionLetter = secondCapture
-        const optionText = thirdCapture ? thirdCapture.trim() : ""
-        
-        if (optionLetter) {
-          answer = `option ${optionNum}/${optionLetter}${optionText ? `) ${optionText}` : ""}`
-        } else {
-          answer = `option ${optionNum}${optionText ? `) ${optionText}` : ""}`
-        }
+    }
+    
+    // If we still have the prompt, try to find where the actual answer starts
+    if (actualResponse.includes('MULTIPLE CHOICE QUESTIONS')) {
+      // Find the last occurrence of a question-like pattern
+      const questionStart = actualResponse.search(/(?:The question|Question:|Options?:|Which|What|How|Why|When|Where)/i)
+      if (questionStart > 0) {
+        actualResponse = actualResponse.substring(questionStart)
       }
-    }  
-    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : "No reasoning provided"
+    }
+    
+    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : actualResponse.trim()
     
     // Format the response with highlighted final answer at the end
-    let formattedCode = response
-    if (finalAnswerMatch && !response.includes("FINAL ANSWER:")) {
+    let formattedCode = actualResponse.trim()
+    if (!formattedCode.includes("FINAL ANSWER:")) {
       // If old format, add FINAL ANSWER section at the end
-      formattedCode = response + `\n\n**FINAL ANSWER:** ${answer}`
+      formattedCode = formattedCode + `\n\n**FINAL ANSWER:** ${answer}`
     }
 
     return {
@@ -830,20 +969,37 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
     }
     const html = htmlMatch ? htmlMatch[0] : ""
 
-    // Extract CSS - look for CSS after HTML or in style blocks
+    // Extract CSS - prioritize extracting from <style> tags since we told Gemini to put CSS there
     let css = ""
 
-    // First try to get CSS after the HTML
+    // First, try to extract from <style> tags (this is where CSS should be)
     if (html) {
-      const afterHTML = response.substring(response.indexOf('</html>') + 7)
-      css = afterHTML.trim()
+      const styleMatches = html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)
+      const cssBlocks = []
+      for (const match of styleMatches) {
+        if (match[1] && match[1].trim()) {
+          cssBlocks.push(match[1].trim())
+        }
+      }
+      if (cssBlocks.length > 0) {
+        css = cssBlocks.join('\n\n')
+      }
     }
 
-    // If no CSS found after HTML, try to extract from style tags
-    if (!css) {
-      const styleMatch = response.match(/<style[\s\S]*?>([\s\S]*?)<\/style>/i)
-      if (styleMatch) {
-        css = styleMatch[1].trim()
+    // Fallback: Look for CSS after HTML (legacy format)
+    if (!css && html) {
+      const afterHTML = response.substring(response.indexOf('</html>') + 7)
+      const afterHTMLTrimmed = afterHTML.trim()
+      
+      // Remove markdown code blocks if present
+      const cssWithoutMarkdown = afterHTMLTrimmed
+        .replace(/^```css\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim()
+      
+      if (cssWithoutMarkdown && !cssWithoutMarkdown.includes('<')) {
+        css = cssWithoutMarkdown
       }
     }
 
@@ -901,12 +1057,13 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
       this.deps.getScreenshotQueue()
     )
     
-    // Enhanced prompt for Groq - emphasizes correctness over option matching
-    const enhancedPrompt = `${systemPrompt}
+    // Enhanced prompt for Groq - split into system and user messages
+    const systemMessage = `${systemPrompt}
 
-CRITICAL FOR ACCURACY:
+CRITICAL FOR ACCURACY AND FORMAT:
 - Calculate the correct answer yourself - don't just pick from options
-- For multiple answer MCQs, select ALL correct options (e.g., "A, C, D")
+- ALWAYS use format: "FINAL ANSWER: option {number}) {your answer}"
+- For multiple answer MCQs, use: "option 1, 3, 4) Multiple answers"
 - For fill in the blanks, provide the exact word/phrase needed
 - For Q&A questions, give clear, concise answers (1-3 sentences)
 - If you calculate 6600 but option says 6500, answer with YOUR calculation (6600)
@@ -914,13 +1071,20 @@ CRITICAL FOR ACCURACY:
 - Prioritize CORRECTNESS over matching given options exactly
 - Give the right answer even if it doesn't match any option perfectly
 
-Question from OCR:
+MANDATORY FORMAT EXAMPLES:
+- "FINAL ANSWER: option 1) True"
+- "FINAL ANSWER: option 3) 6600"
+- "FINAL ANSWER: option 2) The correct statement"
+- "FINAL ANSWER: option 1, 3) Multiple correct"`
+
+    const userMessage = `Question from OCR:
 ${extractedText}`
 
     const response = await this.groqClient.chat.completions.create({
       model: config.groqModel || "llama-3.3-70b-versatile",
       messages: [
-        { role: "user", content: enhancedPrompt }
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage }
       ],
       max_tokens: 8000, // Increased for complete responses
       temperature: 0.1 // Lower for more focused answers
