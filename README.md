@@ -293,7 +293,6 @@ The packaged applications will be available in the `release` directory.
 This application is built with extensibility in mind. You can easily add support for additional LLMs alongside the existing integrations:
 
 - Uses Groq API Llama 4 Maverick vision model
-- You can add Deepseek, Grok, Llama, or any other AI model as alternative options
 - The application architecture allows for multiple LLM backends to coexist
 - Users have the freedom to choose their preferred AI provider
 
