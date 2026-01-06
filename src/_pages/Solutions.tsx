@@ -476,11 +476,12 @@ const Solutions: React.FC<SolutionsProps> = ({
 
   // Helper function to extract ONLY code (no explanation) for IDE-friendly pasting
   const removePythonFormatting = (code: string): string => {
-    // Extract only the code block (between ```python and ```)
-    const codeMatch = code.match(/```python\s*([\s\S]*?)```/i)
+    // Extract only the code block (between ```language and ```) for ANY language
+    // Match any language: ```cpp, ```python, ```java, etc.
+    const codeMatch = code.match(/```\w+\s*([\s\S]*?)```/)
     
     if (codeMatch && codeMatch[1]) {
-      // Found code block - use only the code
+      // Found code block - use only the code (without language name)
       return codeMatch[1].trim()
     }
     
@@ -491,8 +492,8 @@ const Solutions: React.FC<SolutionsProps> = ({
     // Remove "**Explanation:**" section if present
     cleaned = cleaned.replace(/\*\*Explanation:\*\*[\s\S]*?(?=```|$)/gi, '')
     
-    // Remove markdown code blocks markers
-    cleaned = cleaned.replace(/```python\s*/gi, '').replace(/```\s*/gi, '')
+    // Remove markdown code blocks markers (any language)
+    cleaned = cleaned.replace(/```\w+\s*/gi, '').replace(/```\s*/gi, '')
     
     // Remove any remaining markdown formatting
     cleaned = cleaned.replace(/\*\*[^*]+\*\*/g, '') // Remove bold
@@ -518,10 +519,10 @@ const Solutions: React.FC<SolutionsProps> = ({
           dataToCopy = htmlData
           message = "HTML copied to clipboard"
         } 
-        // For Python questions, remove formatting for IDE-friendly pasting
-        else if (questionType === "python" && solutionData) {
+        // For coding questions (Python or other languages), remove formatting for IDE-friendly pasting
+        else if ((questionType === "python" || questionType === "coding") && solutionData) {
           dataToCopy = removePythonFormatting(solutionData)
-          message = "Python code copied (IDE-friendly)"
+          message = "Code copied (IDE-friendly)"
         }
         // Fallback to full solution data
         else if (solutionData) {
@@ -774,8 +775,8 @@ const Solutions: React.FC<SolutionsProps> = ({
                       </div>
                     )}
 
-                    {/* Coding Mode: Extract and show explanation at top */}
-                    {currentMode === 'coding' && questionType === "python" && (
+                    {/* Coding Mode: Extract and show explanation at top - for ALL coding types */}
+                    {currentMode === 'coding' && (questionType === "python" || questionType === "coding") && (
                       <div className="mb-4 p-4 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-2 border-blue-500/50 rounded-lg">
                         <h2 className="text-[13px] font-medium text-white tracking-wide mb-2">
                           💡 Explanation
@@ -820,12 +821,15 @@ const Solutions: React.FC<SolutionsProps> = ({
                     {/* Hide code cell in MCQ mode for MCQ questions */}
                     {!(currentMode === 'mcq' && questionType === "multiple_choice") && (
                       <SolutionSection
-                        title={currentMode === 'coding' && questionType === "python" ? "Minimal Code" : "Solution"}
+                        title={currentMode === 'coding' && questionType === "coding" ? "Code" : "Solution"}
                         content={(() => {
-                          // In coding mode for Python, extract only the code block
-                          if (currentMode === 'coding' && questionType === "python") {
-                            const codeMatch = solutionData.match(/```python\s*([\s\S]*?)```/)
-                            return codeMatch ? codeMatch[1].trim() : solutionData
+                          // In coding mode, extract only the code block (for all languages)
+                          if (currentMode === 'coding' && (questionType === "python" || questionType === "coding")) {
+                            // Try to extract code block for any language
+                            const codeMatch = solutionData.match(/```(\w+)\s*([\s\S]*?)```/)
+                            if (codeMatch) {
+                              return codeMatch[2].trim()
+                            }
                           }
                           return solutionData
                         })()}

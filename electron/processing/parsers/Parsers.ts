@@ -5,18 +5,37 @@ export interface ResponseParser {
 
 export class MCQParser implements ResponseParser {
   parse(response: string): any {
-    // MCQ Detection logic - supports both MCQ with options and fill-in-the-blank
+    try {
+      // Try to parse as JSON first
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        
+        if (parsed.reasoning && parsed.final_answer) {
+          return {
+            question_type: "multiple_choice",
+            answer: parsed.final_answer,
+            reasoning: parsed.reasoning,
+            code: `${parsed.reasoning}\n\n**FINAL ANSWER:** ${parsed.final_answer}`,
+            thoughts: [parsed.reasoning],
+            final_answer_highlight: parsed.final_answer
+          }
+        }
+      }
+    } catch (e) {
+      console.log('Failed to parse MCQ JSON, falling back to text parsing')
+    }
+
+    // Fallback to old text parsing
     let finalAnswerMatch = response.match(/FINAL ANSWER:\s*option\s+([\d,\s]+)\)\s*(.+?)$/im)
 
     let answer = "Answer not found"
 
     if (finalAnswerMatch) {
-      // Format: "FINAL ANSWER: option 2) True"
       const optionNumbers = finalAnswerMatch[1].trim()
       const optionValue = finalAnswerMatch[2].trim()
       answer = `option ${optionNumbers}) ${optionValue}`
     } else {
-      // Try letter-based options (A, B, C, D)
       finalAnswerMatch = response.match(/FINAL ANSWER:\s*([A-D](?:\s*,\s*[A-D])*)\s*(.*)$/im)
 
       if (finalAnswerMatch) {
@@ -29,14 +48,11 @@ export class MCQParser implements ResponseParser {
           answer = value ? `${choices} ${value}` : choices
         }
       } else {
-        // Fill-in-the-blank or "enter your answer" format
-        // Format: "FINAL ANSWER: 5050" or "FINAL ANSWER: photosynthesis"
         finalAnswerMatch = response.match(/FINAL ANSWER:\s*(.+?)$/im)
 
         if (finalAnswerMatch) {
           answer = finalAnswerMatch[1].trim()
         } else {
-          // Fallback: try to find option format without "FINAL ANSWER:"
           finalAnswerMatch = response.match(/option\s+([\d,\s]+)\)\s*(.*)$/im)
 
           if (finalAnswerMatch) {
@@ -48,17 +64,14 @@ export class MCQParser implements ResponseParser {
       }
     }
 
-    // Extract reasoning from ```reasoning block (new MCQ mode format)
     let reasoningMatch = response.match(/```reasoning\s*([\s\S]*?)```/)
     
-    // Fallback to old markdown format
     if (!reasoningMatch) {
       reasoningMatch = response.match(/```markdown\s*([\s\S]*?)```/)
     }
 
     let actualResponse = response
 
-    // Remove any code blocks (python, javascript, etc.) that shouldn't be in MCQ mode
     actualResponse = actualResponse.replace(/```(?:python|javascript|java|cpp|c|go|rust|typescript|jsx|tsx)[\s\S]*?```/gi, '')
 
     const promptMarkers = [
@@ -84,17 +97,13 @@ export class MCQParser implements ResponseParser {
 
     let reasoning = reasoningMatch ? reasoningMatch[1].trim() : actualResponse.trim()
     
-    // Clean up reasoning - remove any remaining code blocks
     reasoning = reasoning.replace(/```[\s\S]*?```/g, '').trim()
     
-    // If reasoning is empty or too short, extract from response
     if (!reasoning || reasoning.length < 10) {
-      // Try to extract text between reasoning block and FINAL ANSWER
       const betweenMatch = response.match(/```reasoning\s*[\s\S]*?```\s*([\s\S]*?)FINAL ANSWER:/i)
       if (betweenMatch && betweenMatch[1].trim()) {
         reasoning = betweenMatch[1].trim()
       } else {
-        // Fallback: use cleaned actualResponse
         reasoning = actualResponse.split('FINAL ANSWER:')[0].trim()
       }
     }
@@ -189,6 +198,94 @@ export class PythonParser implements ResponseParser {
       question_type: "python",
       code: `${beforeCode}\n\n\`\`\`python\n${code}\n\`\`\``,
       concept: questionAsksMatch ? questionAsksMatch[1].trim() : (conceptMatch ? conceptMatch[1].trim() : "Python solution"),
+      thoughts: [explanation],
+      explanation: explanation
+    }
+  }
+}
+
+export class CodingParser implements ResponseParser {
+  parse(response: string): any {
+    console.log('[CodingParser] Parsing response, length:', response.length)
+    
+    try {
+      // Try to parse the entire response as JSON first
+      const trimmedResponse = response.trim()
+      if (trimmedResponse.startsWith('{') && trimmedResponse.endsWith('}')) {
+        console.log('[CodingParser] Response looks like JSON, attempting parse')
+        const parsed = JSON.parse(trimmedResponse)
+        
+        if (parsed.explanation && parsed.language && parsed.code) {
+          console.log('[CodingParser] Valid coding JSON found, language:', parsed.language)
+          
+          // The code might already have actual newlines (not escaped)
+          // or it might have escaped newlines - handle both cases
+          let code = parsed.code
+          
+          // If code contains literal \n (escaped), unescape them
+          if (code.includes('\\n')) {
+            code = code
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\t/g, '\t')
+              .replace(/\\\\/g, '\\')
+          }
+          
+          console.log('[CodingParser] Code after processing, first 50 chars:', code.substring(0, 50))
+          
+          // Format for display with explanation and code block
+          const formattedCode = `**Explanation:** ${parsed.explanation}\n\n\`\`\`${parsed.language}\n${code}\n\`\`\``
+          
+          console.log('[CodingParser] Formatted code created successfully')
+          
+          const result = {
+            question_type: "coding",
+            language: parsed.language,
+            code: formattedCode,
+            concept: parsed.explanation,
+            thoughts: [parsed.explanation],
+            explanation: parsed.explanation
+          }
+          
+          return result
+        }
+      }
+    } catch (e) {
+      console.log('[CodingParser] Failed to parse JSON, falling back to text parsing:', e)
+    }
+
+    // Fallback to old text parsing
+    console.log('[CodingParser] Using fallback text parsing')
+    const languageMatch = response.match(/```(\w+)/)
+    const language = languageMatch ? languageMatch[1] : 'code'
+    
+    const codeMatch = response.match(/```\w+\s*([\s\S]*?)```/)
+    const code = codeMatch ? codeMatch[1].trim() : response
+    
+    let beforeCode = ''
+    let explanation = `${language} solution`
+    
+    if (codeMatch) {
+      const codeBlockStart = response.indexOf('```')
+      beforeCode = response.substring(0, codeBlockStart).trim()
+      
+      const explanationMatch = beforeCode.match(/\*\*Explanation:\*\*\s*([\s\S]*?)$/i)
+      if (explanationMatch) {
+        explanation = explanationMatch[1].trim()
+      } else if (beforeCode) {
+        explanation = beforeCode
+      }
+    }
+    
+    const formattedCode = beforeCode 
+      ? `${beforeCode}\n\n\`\`\`${language}\n${code}\n\`\`\``
+      : `\`\`\`${language}\n${code}\n\`\`\``
+    
+    return {
+      question_type: "coding",
+      language: language,
+      code: formattedCode,
+      concept: explanation,
       thoughts: [explanation],
       explanation: explanation
     }

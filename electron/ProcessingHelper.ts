@@ -7,7 +7,7 @@ import { ErrorHandler } from "./errors/ErrorHandler"
 import { performanceMonitor } from "./utils/PerformanceMonitor"
 import { GroqProvider } from "./processing/ai-providers/GroqProvider"
 import { API } from "./constants/app-constants"
-import { MCQParser, WebDevParser, PythonParser, TextParser } from "./processing/parsers/Parsers"
+import { MCQParser, WebDevParser, PythonParser, CodingParser, TextParser } from "./processing/parsers/Parsers"
 import { getSystemPrompt } from "./processing/prompts/system-prompts"
 import { statusHelper } from "./StatusHelper"
 
@@ -505,25 +505,68 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
   // RESPONSE PARSING
   private parseResponse(response: string): any {
+    console.log('[ProcessingHelper] Parsing response, first 100 chars:', response.substring(0, 100))
+    
     // Try each parser until one returns a specific type or fall back to TextParser
-    // The logic in Parsers is specific. We need to detect which parser to use.
+    const trimmedResponse = response.trim()
+    
+    // First, check if response is JSON format (for new JSON-based responses)
+    if (trimmedResponse.startsWith('{') && trimmedResponse.endsWith('}')) {
+      console.log('[ProcessingHelper] Detected JSON format')
+      try {
+        const parsed = JSON.parse(trimmedResponse)
+        
+        // Check if it's a coding response
+        if (parsed.explanation && parsed.language && parsed.code) {
+          console.log('[ProcessingHelper] Using CodingParser for JSON response')
+          return new CodingParser().parse(response)
+        }
+        
+        // Check if it's an MCQ response
+        if (parsed.reasoning && parsed.final_answer) {
+          console.log('[ProcessingHelper] Using MCQParser for JSON response')
+          return new MCQParser().parse(response)
+        }
+      } catch (e) {
+        console.log('[ProcessingHelper] JSON parse failed:', e)
+      }
+    }
 
-    // MCQ Detection
+    // MCQ Detection (old format)
     if (response.match(/option\s+\d+\)/i) || response.match(/FINAL ANSWER:/i)) {
+      console.log('[ProcessingHelper] Using MCQParser (old format)')
       return new MCQParser().parse(response)
     }
 
     // Web Dev Detection
     if (response.includes('<html>') || response.includes('<!DOCTYPE html>')) {
+      console.log('[ProcessingHelper] Using WebDevParser')
       return new WebDevParser().parse(response)
     }
 
-    // Python Detection
+    // Coding Detection - supports all programming languages
+    // Check for common code block markers
+    const codingLanguages = [
+      'python', 'javascript', 'java', 'cpp', 'c', 'csharp', 'go', 'rust', 
+      'typescript', 'ruby', 'swift', 'kotlin', 'php', 'sql', 'r', 'scala',
+      'perl', 'lua', 'dart', 'haskell', 'elixir', 'clojure', 'jsx', 'tsx'
+    ]
+    
+    for (const lang of codingLanguages) {
+      if (response.includes(`\`\`\`${lang}`)) {
+        console.log('[ProcessingHelper] Using CodingParser for', lang)
+        return new CodingParser().parse(response)
+      }
+    }
+
+    // Fallback to Python parser for backward compatibility
     if (response.includes('```python')) {
+      console.log('[ProcessingHelper] Using PythonParser')
       return new PythonParser().parse(response)
     }
 
     // Default
+    console.log('[ProcessingHelper] Using TextParser (fallback)')
     return new TextParser().parse(response)
   }
 }
