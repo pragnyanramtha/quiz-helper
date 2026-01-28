@@ -327,6 +327,8 @@ See the [LICENSE-SHORT](LICENSE-SHORT) file for a summary of terms or visit [GNU
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for more information.
 
+contributer - rohit 
+
 ## Disclaimer and Ethical Usage
 
 This tool is intended as a learning aid and practice assistant. While it can help you understand problems and solution approaches during interviews, consider these ethical guidelines:
