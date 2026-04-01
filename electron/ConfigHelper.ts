@@ -88,8 +88,7 @@ export class ConfigHelper extends EventEmitter {
         // Validate and fix model name if invalid
         if (config.groqModel) {
           const validModels = [
-            API.GROQ_MODELS.MAVERICK_VISION,
-            API.GROQ_MODELS.SCOUT_VISION,
+            API.GROQ_MODELS.KIMI_K2_TEXT,
             API.GROQ_MODELS.GPT_OSS_TEXT
           ];
           

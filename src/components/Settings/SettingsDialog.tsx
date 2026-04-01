@@ -23,7 +23,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDialogProps) {
   const [open, setOpen] = useState(externalOpen || false);
   const [groqApiKey, setGroqApiKey] = useState("");
-  const [groqModel, setGroqModel] = useState("meta-llama/llama-4-maverick-17b-128e-instruct");
+  const [groqModel, setGroqModel] = useState("moonshotai/kimi-k2-instruct");
   const [mode, setMode] = useState<'mcq' | 'coding'>('coding');
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
@@ -57,7 +57,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         .getConfig()
         .then((config: Config) => {
           setGroqApiKey(config.groqApiKey || "");
-          setGroqModel(config.groqModel || "meta-llama/llama-4-maverick-17b-128e-instruct");
+          setGroqModel(config.groqModel || "moonshotai/kimi-k2-instruct");
           setMode(config.mode || 'coding');
         })
         .catch((error: unknown) => {
@@ -215,20 +215,20 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               <label className="text-sm font-medium text-white">Select Model</label>
               <div className="space-y-2">
                 <div
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${groqModel === "meta-llama/llama-4-maverick-17b-128e-instruct"
+                  className={`p-3 rounded-lg cursor-pointer transition-colors ${groqModel === "moonshotai/kimi-k2-instruct"
                     ? "bg-green-500/20 border-2 border-green-500/50"
                     : "bg-black/30 border border-white/10 hover:bg-white/5"
                     }`}
-                  onClick={() => setGroqModel("meta-llama/llama-4-maverick-17b-128e-instruct")}
+                  onClick={() => setGroqModel("moonshotai/kimi-k2-instruct")}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <div
-                      className={`w-3 h-3 rounded-full ${groqModel === "meta-llama/llama-4-maverick-17b-128e-instruct" ? "bg-green-500" : "bg-white/20"}`}
+                      className={`w-3 h-3 rounded-full ${groqModel === "moonshotai/kimi-k2-instruct" ? "bg-green-500" : "bg-white/20"}`}
                     />
-                    <p className="font-semibold text-white text-sm">🎯 Maverick Vision ⭐</p>
+                    <p className="font-semibold text-white text-sm">🌙 Kimi K2 Instruct ⭐</p>
                   </div>
-                  <p className="text-xs text-white/60 ml-5">Multimodal vision model - analyzes images directly</p>
-                  <p className="text-xs text-green-400 ml-5 mt-1">Best for: All question types (RECOMMENDED)</p>
+                  <p className="text-xs text-white/60 ml-5">Text-only model using high-precision OCR</p>
+                  <p className="text-xs text-green-400 ml-5 mt-1">Best for: Complex reasoning and coding explanations (RECOMMENDED)</p>
                 </div>
                 <div
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${groqModel === "openai/gpt-oss-120b"
@@ -243,8 +243,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                     />
                     <p className="font-semibold text-white text-sm">⚡ GPT-OSS Text</p>
                   </div>
-                  <p className="text-xs text-white/60 ml-5">Text-only model with fast OCR extraction</p>
-                  <p className="text-xs text-blue-400 ml-5 mt-1">Best for: Simple text-based questions</p>
+                  <p className="text-xs text-white/60 ml-5">Text-only model using high-precision OCR</p>
+                  <p className="text-xs text-blue-400 ml-5 mt-1">Best for: Fast answers and short tasks</p>
                 </div>
               </div>
             </div>
@@ -256,11 +256,11 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             <ul className="space-y-1 text-xs text-white/60">
               <li className="flex items-start gap-2">
                 <span className="text-green-400 mt-0.5">•</span>
-                <span><strong>Maverick Vision:</strong> Fast multimodal model with image analysis</span>
+                <span><strong>Kimi K2 Instruct:</strong> Text-only model with high-precision OCR input</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400 mt-0.5">•</span>
-                <span><strong>GPT-OSS Text:</strong> Ultra-fast text-only model with OCR</span>
+                <span><strong>GPT-OSS Text:</strong> Ultra-fast text-only model with high-precision OCR input</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-yellow-400 mt-0.5">•</span>

@@ -1,6 +1,6 @@
 {
   "groqApiKey": "",
-  "groqModel": "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "groqModel": "moonshotai/kimi-k2-instruct",
   "language": "python",
   "opacity": 1
 }

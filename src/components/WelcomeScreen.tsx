@@ -48,9 +48,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onOpenSettings }) 
     },
     {
       title: "Step 6: AI Model 🤖",
-      content: "Uses Groq Llama 4 Maverick vision model for fast and accurate analysis of all question types.",
+      content: "Uses Groq text models (Kimi K2 or GPT-OSS) with high-precision OCR for accurate analysis across all question types.",
       icon: "🤖",
-      highlight: "Maverick"
+      highlight: "Kimi + OCR"
     },
     {
       title: "Step 7: You're Ready! ✨",

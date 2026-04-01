@@ -1,4 +1,3 @@
-import sharp from "sharp"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
@@ -120,63 +119,46 @@ export class ProcessingHelper {
       const appMode = statusHelper.getMode()
       if (appMode === 'gpt') {
         // Force GPT-OSS mode
-        model = 'openai/gpt-oss-120b'
+        model = API.GROQ_MODELS.GPT_OSS_TEXT
         console.log('[Status] Forced GPT-OSS mode (OCR required)')
       } else if (appMode === 'maverick' && model.includes('gpt-oss')) {
-        // Force Maverick mode
-        model = API.DEFAULT_GROQ_MODEL
-        console.log('[Status] Forced Maverick mode (no fallback)')
+        // Legacy status mode: map to Kimi text model
+        model = API.GROQ_MODELS.KIMI_K2_TEXT
+        console.log('[Status] Legacy maverick mode mapped to Kimi text model (OCR required)')
       }
       
-      const isTextOnlyModel = model.includes('gpt-oss')
-      const isUsingFallback = this.groqProvider.isUsingFallbackModel()
-
-      console.log(`Processing with ${isTextOnlyModel || isUsingFallback ? 'GPT-OSS (text + OCR)' : 'Groq Maverick (vision)'}`)
+      console.log('Processing with text model + high-precision OCR')
 
       if (mainWindow) {
         console.log("Sending INITIAL_START event to switch to solutions view")
         mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
         
         mainWindow.webContents.send("processing-status", {
-          message: isTextOnlyModel || isUsingFallback ? "Extracting text with OCR..." : "Analyzing screenshots...",
+          message: "Extracting text with high-precision OCR...",
           progress: 30
         })
       }
 
-      // Extract text with OCR if using text-only model OR if using fallback (which uses GPT-OSS)
+      // All supported models are text-only, so OCR is always required.
       let extractedText = ""
-      if (isTextOnlyModel || isUsingFallback) {
-        performanceMonitor.startTimer('OCR Extraction');
-        try {
-          extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
-          console.log(`OCR extracted ${extractedText.length} characters`)
-          
-          // Dev mode: Log extracted text
-          if (process.env.NODE_ENV === 'development') {
-            console.log('\n========== EXTRACTED TEXT (OCR) ==========')
-            console.log(extractedText)
-            console.log('==========================================\n')
-          }
-        } catch (error) {
-          console.error('OCR failed:', error)
-          throw new Error('OCR extraction failed')
+      performanceMonitor.startTimer('OCR Extraction');
+      try {
+        extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
+        console.log(`OCR extracted ${extractedText.length} characters`)
+        
+        // Dev mode: Log extracted text
+        if (process.env.NODE_ENV === 'development') {
+          console.log('\n========== EXTRACTED TEXT (OCR) ==========')
+          console.log(extractedText)
+          console.log('==========================================\n')
         }
-        performanceMonitor.endTimer('OCR Extraction');
+      } catch (error) {
+        console.error('OCR failed:', error)
+        throw new Error('OCR extraction failed')
       }
+      performanceMonitor.endTimer('OCR Extraction');
 
-      // Load and compress screenshots for faster API calls (only for vision models)
-      performanceMonitor.startTimer('Load Screenshots');
-      const imageDataList = (isTextOnlyModel || isUsingFallback) ? [] : await Promise.all(
-        screenshots.map(async (screenshotPath) => {
-          // Aggressive compression for maximum speed
-          const compressedBuffer = await sharp(screenshotPath)
-            .resize(1280, 720, { fit: 'inside', withoutEnlargement: true }) // Smaller size for faster upload
-            .jpeg({ quality: 75, mozjpeg: true }) // Lower quality, faster compression
-            .toBuffer()
-          return compressedBuffer.toString('base64')
-        })
-      )
-      performanceMonitor.endTimer('Load Screenshots');
+      const imageDataList: string[] = []
 
       this.currentAbortController = new AbortController()
       const signal = this.currentAbortController.signal
@@ -201,17 +183,9 @@ export class ProcessingHelper {
 
       // Use appropriate method based on model type
       try {
-        if (isTextOnlyModel || isUsingFallback) {
-          // Text-only model or fallback: pass OCR text
-          performanceMonitor.startTimer('Groq Text API (with OCR)');
-          responseText = await this.groqProvider.generateContent(systemPrompt, imageDataList, signal, undefined, extractedText);
-          performanceMonitor.endTimer('Groq Text API (with OCR)');
-        } else {
-          // Vision model: pass images
-          performanceMonitor.startTimer('Groq Vision API (no OCR)');
-          responseText = await this.groqProvider.generateContent(systemPrompt, imageDataList, signal);
-          performanceMonitor.endTimer('Groq Vision API (no OCR)');
-        }
+        performanceMonitor.startTimer('Groq Text API (with OCR)');
+        responseText = await this.groqProvider.generateContent(systemPrompt, imageDataList, signal, undefined, extractedText, model);
+        performanceMonitor.endTimer('Groq Text API (with OCR)');
       } catch (error: any) {
         // Handle rate limit fallback to OCR + GPT-OSS
         if (error.message === 'RATE_LIMIT_USE_OCR_FALLBACK') {
@@ -221,11 +195,11 @@ export class ProcessingHelper {
             throw new Error(statusHelper.getMessage() || 'Rate limit reached. Fallback not available in current mode.');
           }
           
-          console.log('[ProcessingHelper] Maverick rate-limited. Using OCR + GPT-OSS fallback...');
+          console.log('[ProcessingHelper] Primary model rate-limited. Using OCR + GPT-OSS fallback...');
           
           if (mainWindow) {
             mainWindow.webContents.send("processing-status", {
-              message: "Rate limited - using OCR + GPT-OSS fallback...",
+              message: "Rate limited - using GPT-OSS fallback...",
               progress: 50
             })
           }
@@ -265,7 +239,7 @@ export class ProcessingHelper {
           if (mainWindow) {
             mainWindow.webContents.send("show-notification", {
               title: "Using Fallback Model",
-              message: "Maverick rate-limited. Using GPT-OSS + OCR - answers may be less accurate.",
+              message: "Primary model rate-limited. Using GPT-OSS fallback.",
               type: "warning"
             });
           }
@@ -339,41 +313,34 @@ export class ProcessingHelper {
       }
 
       const config = configHelper.loadConfig()
-      const model = config.groqModel || API.DEFAULT_GROQ_MODEL
-      const isTextOnlyModel = model.includes('gpt-oss')
-      const isUsingFallback = this.groqProvider.isUsingFallbackModel()
-
-      // Extract text with OCR if using text-only model OR if using fallback
-      let extractedText = ""
-      if (isTextOnlyModel || isUsingFallback) {
-        performanceMonitor.startTimer('OCR Extraction (Debug)');
-        try {
-          extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
-          console.log(`OCR extracted ${extractedText.length} characters (debug mode)`)
-          
-          // Dev mode: Log extracted text
-          if (process.env.NODE_ENV === 'development') {
-            console.log('\n========== EXTRACTED TEXT (DEBUG OCR) ==========')
-            console.log(extractedText)
-            console.log('================================================\n')
-          }
-        } catch (error) {
-          console.error('OCR failed in debug:', error)
-        }
-        performanceMonitor.endTimer('OCR Extraction (Debug)');
+      let debugModel = config.groqModel || API.DEFAULT_GROQ_MODEL
+      const appMode = statusHelper.getMode()
+      if (appMode === 'gpt') {
+        debugModel = API.GROQ_MODELS.GPT_OSS_TEXT
+      } else if (appMode === 'maverick' && debugModel.includes('gpt-oss')) {
+        debugModel = API.GROQ_MODELS.KIMI_K2_TEXT
       }
 
-      // Load and compress error screenshots (only for vision models)
-      const imageDataList = (isTextOnlyModel || isUsingFallback) ? [] : await Promise.all(
-        screenshots.map(async (screenshotPath) => {
-          // Aggressive compression for maximum speed
-          const compressedBuffer = await sharp(screenshotPath)
-            .resize(1280, 720, { fit: 'inside', withoutEnlargement: true }) // Smaller size for faster upload
-            .jpeg({ quality: 75, mozjpeg: true }) // Lower quality, faster compression
-            .toBuffer()
-          return compressedBuffer.toString('base64')
-        })
-      )
+      // All supported models are text-only, so OCR is always required.
+      let extractedText = ""
+      performanceMonitor.startTimer('OCR Extraction (Debug)');
+      try {
+        extractedText = await ocrHelper.extractTextFromMultiple(screenshots)
+        console.log(`OCR extracted ${extractedText.length} characters (debug mode)`)
+        
+        // Dev mode: Log extracted text
+        if (process.env.NODE_ENV === 'development') {
+          console.log('\n========== EXTRACTED TEXT (DEBUG OCR) ==========')
+          console.log(extractedText)
+          console.log('================================================\n')
+        }
+      } catch (error) {
+        console.error('OCR failed in debug:', error)
+        throw new Error('OCR extraction failed in debug mode')
+      }
+      performanceMonitor.endTimer('OCR Extraction (Debug)');
+
+      const imageDataList: string[] = []
 
       this.currentAbortController = new AbortController()
       const signal = this.currentAbortController.signal
@@ -404,18 +371,18 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
 
       try {
         if (this.groqProvider.generateContentWithHistory) {
-            responseText = await this.groqProvider.generateContentWithHistory(debugPrompt, imageDataList, history, signal, extractedText);
+          responseText = await this.groqProvider.generateContentWithHistory(debugPrompt, imageDataList, history, signal, extractedText, debugModel);
         } else {
             throw new Error("Groq provider does not support history");
         }
       } catch (error: any) {
         // Handle rate limit fallback to OCR + GPT-OSS
         if (error.message === 'RATE_LIMIT_USE_OCR_FALLBACK') {
-          console.log('[ProcessingHelper] Maverick rate-limited in debug. Using OCR + GPT-OSS fallback...');
+          console.log('[ProcessingHelper] Primary model rate-limited in debug. Using OCR + GPT-OSS fallback...');
           
           if (mainWindow) {
             mainWindow.webContents.send("processing-status", {
-              message: "Rate limited - using OCR + GPT-OSS fallback...",
+              message: "Rate limited - using GPT-OSS fallback...",
               progress: 50
             })
           }
@@ -453,7 +420,7 @@ Now analyze these error screenshots and fix the issues. Respond in the same form
           if (mainWindow) {
             mainWindow.webContents.send("show-notification", {
               title: "Using Fallback Model",
-              message: "Maverick rate-limited. Using GPT-OSS + OCR for debugging.",
+              message: "Primary model rate-limited. Using GPT-OSS fallback for debugging.",
               type: "warning"
             });
           }

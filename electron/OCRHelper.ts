@@ -6,7 +6,7 @@ import sharp from 'sharp';
 export class OCRHelper {
   private workers: Worker[] = [];
   private isInitialized: boolean = false;
-  private workerCount: number = 4; // Use 4 workers for maximum parallel processing
+  private workerCount: number = 2; // Fewer workers to reduce contention and improve OCR consistency
   private currentWorkerIndex: number = 0;
 
   constructor() {
@@ -24,25 +24,25 @@ export class OCRHelper {
           errorHandler: () => {} // Disable error logging
         });
         
-        // SPEED-OPTIMIZED CONFIGURATION - Maximum speed with acceptable accuracy
+        // ACCURACY-OPTIMIZED CONFIGURATION for MCQ and coding workflows
         await worker.setParameters({
-          tessedit_pageseg_mode: 6 as any, // Assume uniform block of text (fastest)
+          tessedit_pageseg_mode: 6 as any, // Uniform block of text; stable for screenshots
           tessedit_ocr_engine_mode: 1 as any, // LSTM only
           
           // Preserve whitespace (critical for code)
           preserve_interword_spaces: 1 as any,
           
-          // Disable all dictionaries for maximum speed
-          load_system_dawg: 0 as any,
-          load_freq_dawg: 0 as any,
-          load_unambig_dawg: 0 as any,
-          load_punc_dawg: 0 as any,
-          load_number_dawg: 0 as any,
-          load_bigram_dawg: 0 as any,
-          
-          // Disable adaptive features for speed
-          classify_enable_learning: 0 as any,
-          classify_enable_adaptive_matcher: 0 as any,
+          // Keep language models enabled for better token accuracy
+          load_system_dawg: 1 as any,
+          load_freq_dawg: 1 as any,
+          load_unambig_dawg: 1 as any,
+          load_punc_dawg: 1 as any,
+          load_number_dawg: 1 as any,
+          load_bigram_dawg: 1 as any,
+
+          // Enable adaptive matching for higher precision
+          classify_enable_learning: 1 as any,
+          classify_enable_adaptive_matcher: 1 as any,
         });
         
         return worker;
@@ -76,24 +76,26 @@ export class OCRHelper {
       const originalWidth = metadata.width || 1920;
       const originalHeight = metadata.height || 1080;
       
-      // Minimal upscaling for maximum speed
-      const scaleFactor = originalWidth < 1920 ? 1.5 : 1.0;
+      // More aggressive upscaling improves OCR confidence on small fonts.
+      const scaleFactor = originalWidth < 2200 ? 2.0 : 1.3;
       const targetWidth = Math.round(originalWidth * scaleFactor);
       const targetHeight = Math.round(originalHeight * scaleFactor);
       
       const processed = await sharp(imagePath)
-        // Minimal upscaling
+        // Upscale using Lanczos for cleaner text edges.
         .resize(targetWidth, targetHeight, {
           fit: 'fill',
-          kernel: 'nearest' // Fastest resampling
+          kernel: 'lanczos3'
         })
         // Convert to grayscale
         .grayscale()
-        // Normalize contrast (essential for OCR)
+        // Improve local contrast before thresholding.
         .normalize()
-        // Output as PNG with minimal compression
+        .sharpen({ sigma: 1.2, m1: 0.7, m2: 2 })
+        .threshold(160)
+        // Output as PNG with light compression to preserve detail.
         .png({
-          compressionLevel: 0, // No compression for speed
+          compressionLevel: 3,
           quality: 90
         })
         .toBuffer();
@@ -134,9 +136,9 @@ export class OCRHelper {
       // Preprocess image for maximum accuracy
       const imageBuffer = await this.preprocessImage(imagePath);
       
-      // Perform OCR with speed-focused settings
+      // Perform OCR with precision-focused settings
       const { data: { text } } = await worker.recognize(imageBuffer, {
-        rotateAuto: false, // Disable auto-rotation for speed
+        rotateAuto: true,
         rotateRadians: 0
       });
       
@@ -159,7 +161,7 @@ export class OCRHelper {
     }
     
     try {
-      // Process all images in parallel for maximum speed
+      // Process images in parallel with worker pooling.
       const textPromises = imagePaths.map(imagePath => this.extractText(imagePath));
       const texts = await Promise.all(textPromises);
       

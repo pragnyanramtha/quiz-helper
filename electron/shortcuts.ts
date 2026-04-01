@@ -263,14 +263,14 @@ export class ShortcutsHelper {
         const config = configHelper.loadConfig()
         const currentModel = config.groqModel || API.DEFAULT_GROQ_MODEL
         
-        // Toggle between Maverick Vision and GPT-OSS Text
-        const newModel = currentModel === API.GROQ_MODELS.MAVERICK_VISION 
+        // Toggle between Kimi K2 and GPT-OSS text models
+        const newModel = currentModel === API.GROQ_MODELS.KIMI_K2_TEXT 
           ? API.GROQ_MODELS.GPT_OSS_TEXT 
-          : API.GROQ_MODELS.MAVERICK_VISION
+          : API.GROQ_MODELS.KIMI_K2_TEXT
         
         configHelper.updateConfig({ groqModel: newModel })
         
-        const modelName = newModel === API.GROQ_MODELS.MAVERICK_VISION ? "Maverick Vision" : "GPT-OSS Text"
+        const modelName = newModel === API.GROQ_MODELS.KIMI_K2_TEXT ? "Kimi K2 Instruct" : "GPT-OSS Text"
         console.log(`Switched to: ${modelName}`)
 
         const mainWindow = this.deps.getMainWindow()

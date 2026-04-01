@@ -26,7 +26,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { showToast } = useToast()
   const [currentMode, setCurrentMode] = useState<'mcq' | 'coding'>('coding')
-  const [currentModel, setCurrentModel] = useState<string>('maverick')
+  const [currentModel, setCurrentModel] = useState<string>('kimi')
   const [isUsingFallback, setIsUsingFallback] = useState<boolean>(false)
   const [shouldBlink, setShouldBlink] = useState<boolean>(false)
   const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -41,12 +41,12 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
         setCurrentMode(config.mode || 'coding')
         // Determine model name from config
         const modelName = config.groqModel || config.solutionModel || config.model || ''
-        if (modelName.includes('maverick')) {
-          setCurrentModel('maverick')
+        if (modelName.includes('kimi-k2')) {
+          setCurrentModel('kimi')
         } else if (modelName.includes('gpt') || modelName.includes('120b')) {
           setCurrentModel('gpt-oss')
         } else {
-          setCurrentModel('maverick')
+          setCurrentModel('kimi')
         }
         
         // Check current fallback status
@@ -77,8 +77,8 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   // Listen for model changes from keyboard shortcut (Ctrl+\)
   useEffect(() => {
     const cleanup = window.electronAPI.onModelChanged((data: { model: string; provider: string }) => {
-      if (data.model.includes('maverick')) {
-        setCurrentModel('maverick')
+      if (data.model.includes('kimi-k2')) {
+        setCurrentModel('kimi')
       } else if (data.model.includes('gpt') || data.model.includes('120b')) {
         setCurrentModel('gpt-oss')
       }
@@ -111,8 +111,19 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
         console.log('[UI] Fallback ended, back to normal model')
         setShouldBlink(false)
         
-        // When fallback ends, switch back to Maverick
-        setCurrentModel('maverick')
+        // Restore model indicator from current config.
+        window.electronAPI.getConfig()
+          .then((cfg) => {
+            const modelName = cfg.groqModel || cfg.solutionModel || cfg.model || ''
+            if (modelName.includes('kimi-k2')) {
+              setCurrentModel('kimi')
+            } else if (modelName.includes('gpt') || modelName.includes('120b')) {
+              setCurrentModel('gpt-oss')
+            }
+          })
+          .catch(() => {
+            setCurrentModel('kimi')
+          })
         
         // Clear timer if fallback ends early
         if (blinkTimerRef.current) {
@@ -149,12 +160,12 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
 
   // Toggle model function
   const toggleModel = async () => {
-    const newModel = currentModel === 'maverick' ? 'gpt-oss' : 'maverick'
+    const newModel = currentModel === 'kimi' ? 'gpt-oss' : 'kimi'
     setCurrentModel(newModel)
     
     try {
-      const modelName = newModel === 'maverick' 
-        ? 'meta-llama/llama-4-maverick-17b-128e-instruct'
+      const modelName = newModel === 'kimi' 
+        ? 'moonshotai/kimi-k2-instruct'
         : 'openai/gpt-oss-120b'
       
       await window.electronAPI.updateConfig({ 
@@ -162,8 +173,8 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
         solutionModel: modelName 
       })
       
-      const modelInfo = newModel === 'maverick'
-        ? { name: 'Maverick', color: 'green' }
+      const modelInfo = newModel === 'kimi'
+        ? { name: 'Kimi K2 Instruct', color: 'green' }
         : { name: 'GPT OSS 120B', color: 'red' }
       
       showToast('Model Changed', `Switched to ${modelInfo.name}`, 'success')
@@ -300,21 +311,21 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
               title={
                 isUsingFallback 
                   ? 'Rate Limited - Using GPT-OSS Fallback' 
-                  : `Current Model: ${currentModel === 'maverick' ? 'Maverick' : 'GPT OSS 120B'} (Click to switch, ${COMMAND_KEY}+\\)`
+                  : `Current Model: ${currentModel === 'kimi' ? 'Kimi K2 Instruct' : 'GPT OSS 120B'} (Click to switch, ${COMMAND_KEY}+\\)`
               }
             >
               <div className={`w-2.5 h-2.5 rounded-full ${
                 isUsingFallback 
                   ? `bg-red-500 shadow-lg shadow-red-500/50 ${shouldBlink ? 'animate-pulse' : ''}` 
-                  : currentModel === 'maverick' 
+                  : currentModel === 'kimi' 
                     ? 'bg-green-500 shadow-lg shadow-green-500/50' 
                     : 'bg-orange-500 shadow-lg shadow-orange-500/50'
               }`}></div>
             </div>
           </div>
 
-          {/* Quick Solve (MCQ + Maverick + Not Rate Limited) or Take Screenshot (other modes) */}
-          {currentMode === 'mcq' && currentModel === 'maverick' && !isUsingFallback ? (
+          {/* Quick Solve (MCQ + Kimi + Not Rate Limited) or Take Screenshot (other modes) */}
+          {currentMode === 'mcq' && currentModel === 'kimi' && !isUsingFallback ? (
             <div
               className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-yellow-500/20 transition-colors bg-yellow-500/10 border border-yellow-500/30"
               style={{ width: '165px' }}

@@ -1,1 +1,1 @@
-{ "enabled": false,"mode":"maverick", "message": "The server is functional ?" }
+{ "enabled": false, "mode": "gpt", "message": "The server is functional ?" }

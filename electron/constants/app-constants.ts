@@ -22,11 +22,10 @@ export const API = {
   TIMEOUT_MS: 30000, // 30 seconds - more reasonable timeout
   RETRY_DELAY_BASE: 1000,
   GROQ_MODELS: {
-    MAVERICK_VISION: 'meta-llama/llama-4-maverick-17b-128e-instruct',
-    SCOUT_VISION: 'meta-llama/llama-4-scout-17b-16e-instruct', // Fallback model
+    KIMI_K2_TEXT: 'moonshotai/kimi-k2-instruct',
     GPT_OSS_TEXT: 'openai/gpt-oss-120b'
   },
-  DEFAULT_GROQ_MODEL: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+  DEFAULT_GROQ_MODEL: 'moonshotai/kimi-k2-instruct',
   FALLBACK_COOLDOWN_MS: 30000, // 30 seconds - Groq uses sliding window rate limits
   DEFAULT_LANGUAGE: 'python',
 } as const;
